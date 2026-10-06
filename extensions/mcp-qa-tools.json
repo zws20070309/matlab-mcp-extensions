@@ -1,0 +1,561 @@
+{
+  "tools": [
+    {
+      "name": "capture_app",
+      "title": "Capture window to PNG",
+      "description": "Screenshot a figure or uifigure to PNG. Needs an open window in this session; returns the file path. mode auto (default) uses exportapp, which also renders uifigures; mode screen grabs real pixels and steals focus.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Window number, or app title substring"
+          },
+          "outPath": {
+            "type": "string",
+            "description": "PNG path to write"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "exportapp",
+              "exportgraphics",
+              "screen",
+              ""
+            ],
+            "description": "auto|exportapp|exportgraphics|screen"
+          }
+        },
+        "required": [
+          "target",
+          "outPath",
+          "mode"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_ui",
+      "title": "List open figures and apps",
+      "description": "List open MATLAB figures/uifigure apps with titles and handle paths, so a capture or click can name a window.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Filter substring; empty lists all"
+          },
+          "verbose": {
+            "type": "string",
+            "description": "true also lists control hierarchy"
+          }
+        },
+        "required": [
+          "target",
+          "verbose"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "run_tests",
+      "title": "Run one test file or folder",
+      "description": "Run a MATLAB test file or folder and print a pass/fail summary. For whole-suite certification with budgets use suite_run.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "testPath": {
+            "type": "string",
+            "description": ".m file or folder with tests"
+          }
+        },
+        "required": [
+          "testPath"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "session_info",
+      "title": "Session and host state",
+      "description": "Print MATLAB version, pid, memory, toolbox list and GPU availability. Cheap; call before long work.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "string",
+            "description": "\"short\" | \"full\""
+          }
+        },
+        "required": [
+          "level"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sl_sim",
+      "title": "Run a Simulink simulation",
+      "description": "Load a model, apply parameter overrides, run sim, write outputs to MAT and print a summary.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "modelPath": {
+            "type": "string",
+            "description": ".slx path"
+          },
+          "simTime": {
+            "type": "string",
+            "description": "Stop time, e.g. \"10\""
+          },
+          "paramJson": {
+            "type": "string",
+            "description": "{\"block.param\":value} or \"\""
+          },
+          "outDir": {
+            "type": "string",
+            "description": "Folder for the .mat, or \"\" for temp"
+          },
+          "keepInSession": {
+            "type": "string",
+            "description": "true leaves the model loaded"
+          }
+        },
+        "required": [
+          "modelPath",
+          "simTime",
+          "paramJson",
+          "outDir",
+          "keepInSession"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sl_compare",
+      "title": "Diff two sim result sets",
+      "description": "Compare variables from two .mat result sets within a tolerance and print per-signal verdicts.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "aRef": {
+            "type": "string",
+            "description": "First .mat (or var)"
+          },
+          "bRef": {
+            "type": "string",
+            "description": "Second .mat (or var)"
+          },
+          "tolJson": {
+            "type": "string",
+            "description": "{\"abs\":1e-6,\"rel\":1e-6} or \"\""
+          },
+          "maxShift": {
+            "type": "string",
+            "description": "Max samples to report per signal"
+          }
+        },
+        "required": [
+          "aRef",
+          "bRef",
+          "tolJson",
+          "maxShift"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "resolve_capability",
+      "title": "Report capability availability",
+      "description": "Resolve named toolbox/GPU/feature requirements against this host and print AVAILABLE / MISSING per item.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "namesJson": {
+            "type": "string",
+            "description": "JSON array or object of requirement names"
+          },
+          "showTable": {
+            "type": "string",
+            "description": "true prints every row"
+          }
+        },
+        "required": [
+          "namesJson",
+          "showTable"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "env_report",
+      "title": "Host and toolbox inventory",
+      "description": "Print OS memory, CPU, MATLAB release, installed toolboxes and licensed GPUs.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "description": "\"all\" | \"memory\" | \"toolboxes\" | \"gpu\""
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "session_reset",
+      "title": "Clear workspace, figures, path",
+      "description": "Clear the base workspace and/or close figures and reset the path. Destructive: confirm must be the literal word.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "what": {
+            "type": "string",
+            "description": "\"workspace\" | \"figures\" | \"path\" | \"all\""
+          },
+          "confirm": {
+            "type": "string",
+            "description": "Literal \"yes\" to proceed"
+          }
+        },
+        "required": [
+          "what",
+          "confirm"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "check_code_tree",
+      "title": "Lint a folder of .m files",
+      "description": "Run checkcode over every .m under a folder and print per-file error/warning counts plus a verdict line.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "rootPath": {
+            "type": "string",
+            "description": "Folder to scan"
+          },
+          "pattern": {
+            "type": "string",
+            "description": "Glob, usually \"*.m\""
+          },
+          "minSeverity": {
+            "type": "string",
+            "description": "\"error\" | \"warning\" | \"info\"",
+            "enum": [
+              "",
+              "error",
+              "warning",
+              "info"
+            ]
+          }
+        },
+        "required": [
+          "rootPath",
+          "pattern",
+          "minSeverity"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sl_build",
+      "title": "Build a model from JSON",
+      "description": "Create or patch a Simulink model from a JSON block/wire spec, then save it.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "modelPath": {
+            "type": "string",
+            "description": ".slx to create or patch"
+          },
+          "specJson": {
+            "type": "string",
+            "description": "Model spec as JSON"
+          },
+          "optsJson": {
+            "type": "string",
+            "description": "{\"overwrite\":true,...} or \"\" }"
+          }
+        },
+        "required": [
+          "modelPath",
+          "specJson",
+          "optsJson"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "longrun_preflight",
+      "title": "Gate before a long run",
+      "description": "Go/NO-GO before a long MATLAB run: free memory, MATLAB process count, tests folder, and artifacts newer/older than sources. Prints reasons.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "optsJson": {
+            "type": "string",
+            "description": "{\"minFreeMB\":2048,\"maxMatlabProcs\":2,\"repoRoot\":\"...\",\"testsDir\":\"...\",\"evidenceFile\":\"...\",\"sourceDirs\":[\"src\",\"tests\"]}"
+          }
+        },
+        "required": [
+          "optsJson"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "code_refresh",
+      "title": "Report and drop stale code",
+      "description": "Report how many .m files the session holds and rehash or clear them, so a run cannot certify old bytecode. +package/@class need clear functions, which it names.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Folder to inspect (\"\" = whole repo path)"
+          },
+          "optsJson": {
+            "type": "string",
+            "description": "{\"clearFunctions\":true|false|\"auto\",\"lint\":true}"
+          }
+        },
+        "required": [
+          "path",
+          "optsJson"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "suite_run",
+      "title": "Certify a test suite in budget",
+      "description": "Run a repo test tree in shards with a time budget, appending BEGIN/END per file to a log outside the repo, then recompute the verdict from every END record (not the last line) and refuse to certify on 0 files, missing files, failures, count mismatch or a tree that changed mid-run.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repoRoot": {
+            "type": "string",
+            "description": "Repository root"
+          },
+          "optsJson": {
+            "type": "string",
+            "description": "{\"testsDir\",\"filePattern\",\"shards\",\"budgetSec\",\"maxFiles\",\"perCase\",\"stopOnFail\",\"countsJson\",\"keyFiles\",\"keyCases\",\"addPaths\",\"cwd\",\"logDir\",\"runId\",\"clearFunctions\",\"force\"}"
+          }
+        },
+        "required": [
+          "repoRoot",
+          "optsJson"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "suite_status",
+      "title": "Read a certification from disk",
+      "description": "Recompute a suite_run run from its log: per-file last record, cumulative cases, not-run list, MUTATED rounds, and the tree digest the log recorded versus the tree now. No verdict line means interrupted, not slow.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "description": "Run id, or \"\" / \"last\" to list runs"
+          },
+          "optsJson": {
+            "type": "string",
+            "description": "{\"logDir\",\"tail\",\"checkTree\",\"filePattern\"}"
+          }
+        },
+        "required": [
+          "runId",
+          "optsJson"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "steps_run",
+      "title": "Run an ordered close-out chain",
+      "description": "Run numbered steps in order and abort at the first failure, naming which steps already wrote: kinds command|test|anchor|anchors|json|sub|exists|docsync|fresh. sub keeps a .bak; quotes are refused into .json; fresh/anchors catch stale generated files.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "repoRoot": {
+            "type": "string",
+            "description": "Repository root"
+          },
+          "stepsJson": {
+            "type": "string",
+            "description": "JSON array of {\"name\",\"kind\",...} or a .json file path"
+          },
+          "optsJson": {
+            "type": "string",
+            "description": "{\"logDir\",\"addPaths\",\"stopOnFail\",\"dryRun\",\"recipe\":\"closeout\"}"
+          }
+        },
+        "required": [
+          "repoRoot",
+          "stepsJson",
+          "optsJson"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "signatures": {
+    "capture_app": {
+      "function": "capture_app",
+      "input": {
+        "order": [
+          "target",
+          "outPath",
+          "mode"
+        ]
+      }
+    },
+    "list_ui": {
+      "function": "list_ui",
+      "input": {
+        "order": [
+          "target",
+          "verbose"
+        ]
+      }
+    },
+    "run_tests": {
+      "function": "run_tests",
+      "input": {
+        "order": [
+          "testPath"
+        ]
+      }
+    },
+    "session_info": {
+      "function": "session_info",
+      "input": {
+        "order": [
+          "level"
+        ]
+      }
+    },
+    "sl_sim": {
+      "function": "sl_sim",
+      "input": {
+        "order": [
+          "modelPath",
+          "simTime",
+          "paramJson",
+          "outDir",
+          "keepInSession"
+        ]
+      }
+    },
+    "sl_compare": {
+      "function": "sl_compare",
+      "input": {
+        "order": [
+          "aRef",
+          "bRef",
+          "tolJson",
+          "maxShift"
+        ]
+      }
+    },
+    "resolve_capability": {
+      "function": "resolve_capability",
+      "input": {
+        "order": [
+          "namesJson",
+          "showTable"
+        ]
+      }
+    },
+    "env_report": {
+      "function": "env_report",
+      "input": {
+        "order": [
+          "scope"
+        ]
+      }
+    },
+    "session_reset": {
+      "function": "session_reset",
+      "input": {
+        "order": [
+          "what",
+          "confirm"
+        ]
+      }
+    },
+    "check_code_tree": {
+      "function": "check_code_tree",
+      "input": {
+        "order": [
+          "rootPath",
+          "pattern",
+          "minSeverity"
+        ]
+      }
+    },
+    "sl_build": {
+      "function": "sl_build",
+      "input": {
+        "order": [
+          "modelPath",
+          "specJson",
+          "optsJson"
+        ]
+      }
+    },
+    "longrun_preflight": {
+      "function": "longrun_preflight",
+      "input": {
+        "order": [
+          "optsJson"
+        ]
+      }
+    },
+    "code_refresh": {
+      "function": "code_refresh",
+      "input": {
+        "order": [
+          "path",
+          "optsJson"
+        ]
+      }
+    },
+    "suite_run": {
+      "function": "suite_run",
+      "input": {
+        "order": [
+          "repoRoot",
+          "optsJson"
+        ]
+      }
+    },
+    "suite_status": {
+      "function": "suite_status",
+      "input": {
+        "order": [
+          "runId",
+          "optsJson"
+        ]
+      }
+    },
+    "steps_run": {
+      "function": "steps_run",
+      "input": {
+        "order": [
+          "repoRoot",
+          "stepsJson",
+          "optsJson"
+        ]
+      }
+    }
+  }
+}
