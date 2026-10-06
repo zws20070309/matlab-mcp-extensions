@@ -1,0 +1,34 @@
+# ── 官方发行二进制：不是本仓库的资产，随官方版本记录在 README 里 ──────────────
+matlab-mcp-server-windows-x64.exe
+matlab-mcp-server-*.exe
+matlab-mcp-server-*
+
+# ── 运行时产物：每次调用都会变，且含真实数据，一律不入库 ────────────────────
+# 异步作业：meta.json / run.log / done.json / result.mat（587 个目录，15 MB+）
+jobs/
+# 参数扫描登记
+sweeps/
+# eval_async 自动生成的临时函数壳 —— 内容里带着调用方的真实绝对路径
+snippets/
+# evaluate_logged / run_tests 的原始输出落盘
+exports/
+# 统一调用审计流水（时间戳 + 工具名 + 首个参数）
+logs/
+suite_logs/
+steps_logs/
+
+# ── 工作区快照：那是**别的项目**的基工作区变量转储，不是 MCP 工具的一部分 ─────
+checkpoint.mat
+checkpoint_history/
+
+# ── 历史归档：旧作业、旧注册表备份、截图 ────────────────────────────────────
+_archive/
+
+# ── MATLAB / 编辑器 / 系统 ──────────────────────────────────────────────────
+*.asv
+*.mexw64
+*.mexa64
+*.mat
+.DS_Store
+Thumbs.db
+*.lnk

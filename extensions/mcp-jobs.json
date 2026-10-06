@@ -1,0 +1,590 @@
+{
+  "tools": [
+    {
+      "name": "submit_job",
+      "title": "Submit a batch job",
+      "description": "Run a MATLAB function as an async job on a parpool worker (optional GPU) and return a job id. Needs a pool; on a 16 GB single host prefer suite_run.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "scriptPath": {
+            "type": "string",
+            "description": ".m with one function"
+          },
+          "paramsJson": {
+            "type": "string",
+            "description": "JSON array of arguments or \"\""
+          },
+          "tag": {
+            "type": "string",
+            "description": "Label for list_jobs"
+          },
+          "numWorkers": {
+            "type": "string",
+            "description": "Workers, 1 default"
+          },
+          "gpu": {
+            "type": "string",
+            "description": "true requires a parallel GPU pool"
+          },
+          "attachedFiles": {
+            "type": "string",
+            "description": "JSON array of files to copy to the worker"
+          }
+        },
+        "required": [
+          "scriptPath",
+          "paramsJson",
+          "tag",
+          "numWorkers",
+          "gpu",
+          "attachedFiles"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "job_status",
+      "title": "One job status",
+      "description": "Print one submitted job’s state, elapsed time and tail of its log.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "id from submit_job"
+          }
+        },
+        "required": [
+          "jobId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_jobs",
+      "title": "List jobs",
+      "description": "List submitted jobs, optionally filtered by state or tag; prints ids and states.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "\"queued|running|done|failed|\"\""
+          },
+          "limit": {
+            "type": "string",
+            "description": "Max rows"
+          },
+          "tagContains": {
+            "type": "string",
+            "description": "Substring of tag"
+          }
+        },
+        "required": [
+          "state",
+          "limit",
+          "tagContains"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cancel_job",
+      "title": "Cancel a job",
+      "description": "Cancel a running or queued job by jobId; prints the state transition and marks meta.json cancelled. Jobs already finished/failed/cancelled are reported, not re-cancelled.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "id to cancel"
+          }
+        },
+        "required": [
+          "jobId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_variable",
+      "title": "Inspect a workspace variable",
+      "description": "Print class/size/type and a bounded preview of a base-workspace variable. Values come from disk-safe capture, not a dump.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Variable name"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "head",
+              "csv",
+              "",
+              "json"
+            ],
+            "description": "summary|head|csv|json"
+          }
+        },
+        "required": [
+          "name",
+          "mode"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "capture_figure",
+      "title": "Capture a figure",
+      "description": "Save a figure to PNG by number or handle name, printing the path.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Figure number or name"
+          },
+          "outPath": {
+            "type": "string",
+            "description": "PNG path"
+          }
+        },
+        "required": [
+          "target",
+          "outPath"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "enable_checkpoint",
+      "title": "Turn on.matlab checkpoints",
+      "description": "Enable periodic workspace snapshots and report the interval.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "periodSeconds": {
+            "type": "number",
+            "description": "Snapshot interval"
+          }
+        },
+        "required": [
+          "periodSeconds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "restore_checkpoint",
+      "title": "Restore a snapshot",
+      "description": "Restore the base workspace from a snapshot file. Destructive to current variables.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "snapshot": {
+            "type": "string",
+            "description": "Snapshot id or file, \"\" = latest"
+          }
+        },
+        "required": [
+          "snapshot"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "eval_async",
+      "title": "Evaluate code without waiting",
+      "description": "Send code to the session and return immediately; poll with job_status/list_jobs. Use for work longer than the client timeout.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "MATLAB statements; newlines are stripped, use @@NL@@"
+          },
+          "codeFile": {
+            "type": "string",
+            "description": "Path to a .m text file, or \"\""
+          },
+          "tag": {
+            "type": "string",
+            "description": "Label"
+          }
+        },
+        "required": [
+          "code",
+          "codeFile",
+          "tag"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "evaluate_logged",
+      "title": "Evaluate and log full output",
+      "description": "Evaluate code and write all command-window output to exports/eval_<time>.log, printing the path and the last lines. Use when output may exceed the client cut.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "One line only unless @@NL@@ marks breaks; \"\" when codeFile is used"
+          },
+          "codeFile": {
+            "type": "string",
+            "description": "UTF-8 file with the multi-line code; \"\" when code is used"
+          }
+        },
+        "required": [
+          "code",
+          "codeFile"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "submit_sweep",
+      "title": "Submit a parameter sweep",
+      "description": "Submit one job per parameter set from a JSON array of argument arrays and return a sweep id.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "scriptPath": {
+            "type": "string",
+            "description": ".m function"
+          },
+          "paramsJsonArray": {
+            "type": "string",
+            "description": "JSON array of argument arrays"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Label"
+          },
+          "numWorkers": {
+            "type": "string",
+            "description": "Workers per job"
+          },
+          "gpu": {
+            "type": "string",
+            "description": "true for GPU pool"
+          },
+          "attachedFiles": {
+            "type": "string",
+            "description": "JSON array of files"
+          },
+          "name": {
+            "type": "string",
+            "description": "Short human label for the sweep. Pass \"\" when not using it - this bridge requires every listed argument to be present."
+          }
+        },
+        "required": [
+          "scriptPath",
+          "paramsJsonArray",
+          "tag",
+          "numWorkers",
+          "gpu",
+          "attachedFiles",
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "sweep_status",
+      "title": "Sweep progress",
+      "description": "Print per-case states and counts for a sweep id.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sweepId": {
+            "type": "string",
+            "description": "id from submit_sweep"
+          },
+          "tail": {
+            "type": "string",
+            "description": "Log lines per case"
+          }
+        },
+        "required": [
+          "sweepId",
+          "tail"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "cancel_sweep",
+      "title": "Cancel a sweep",
+      "description": "Cancel every unfinished job in a sweep. Needs confirm=\"yes\".",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sweepId": {
+            "type": "string",
+            "description": "id to cancel"
+          },
+          "confirm": {
+            "type": "string",
+            "description": "Literal \"yes\""
+          }
+        },
+        "required": [
+          "sweepId",
+          "confirm"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "gpu_probe",
+      "title": "Probe GPU",
+      "description": "Report CUDA devices plus optional timed single and parallel GPU checks, and whether gpuArray is usable.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "enable": {
+            "type": "string",
+            "description": "true runs the timed checks"
+          },
+          "samples": {
+            "type": "string",
+            "description": "Repeat count for timings"
+          }
+        },
+        "required": [
+          "enable",
+          "samples"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "gpu_mc",
+      "title": "GPU monte-Carlo batch",
+      "description": "Run a user function on GPU over a vectorised batch and print summary statistics of the returned samples.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "funPath": {
+            "type": "string",
+            "description": ".m returning samples, vectorised over N"
+          },
+          "specJson": {
+            "type": "string",
+            "description": "{\"n\":...,\"params\":{...},\"seed\":...}"
+          }
+        },
+        "required": [
+          "funPath",
+          "specJson"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "file_op",
+      "title": "File read/write/inspect",
+      "description": "One file tool: read|tail|write|append|list|delete|copy|stat|json|find|sub. tail/read page with next_cursor; json validates and points at an unescaped quote; sub replaces only when the occurrence count matches and keeps a .bak.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "read|write|append|hash|list|tail|exists|stat|mkdir|copy|delete|json|find|sub",
+            "enum": [
+              "read",
+              "write",
+              "append",
+              "hash",
+              "list",
+              "tail",
+              "exists",
+              "mkdir",
+              "copy",
+              "delete",
+              "sub",
+              "find",
+              "json",
+              "stat",
+              ""
+            ]
+          },
+          "target": {
+            "type": "string",
+            "description": "File or folder path"
+          },
+          "optsJson": {
+            "type": "string",
+            "description": "{\"content\",\"encoding\",\"startLine\",\"maxLines\",\"cursor\",\"maxBytes\",\"pattern\",\"algo\",\"recursive\",\"dst\",\"confirm\",\"get\",\"text\",\"regex\",\"glob\",\"find\",\"replace\",\"expect\",\"noBackup\",\"allowQuote\"}"
+          }
+        },
+        "required": [
+          "action",
+          "target",
+          "optsJson"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "signatures": {
+    "submit_job": {
+      "function": "submit_job",
+      "input": {
+        "order": [
+          "scriptPath",
+          "paramsJson",
+          "tag",
+          "numWorkers",
+          "gpu",
+          "attachedFiles"
+        ]
+      }
+    },
+    "job_status": {
+      "function": "job_status",
+      "input": {
+        "order": [
+          "jobId"
+        ]
+      }
+    },
+    "list_jobs": {
+      "function": "list_jobs",
+      "input": {
+        "order": [
+          "state",
+          "limit",
+          "tagContains"
+        ]
+      }
+    },
+    "cancel_job": {
+      "function": "cancel_job",
+      "input": {
+        "order": [
+          "jobId"
+        ]
+      }
+    },
+    "get_variable": {
+      "function": "get_variable",
+      "input": {
+        "order": [
+          "name",
+          "mode"
+        ]
+      }
+    },
+    "capture_figure": {
+      "function": "capture_figure",
+      "input": {
+        "order": [
+          "target",
+          "outPath"
+        ]
+      }
+    },
+    "enable_checkpoint": {
+      "function": "enable_checkpoint",
+      "input": {
+        "order": [
+          "periodSeconds"
+        ]
+      }
+    },
+    "restore_checkpoint": {
+      "function": "restore_checkpoint",
+      "input": {
+        "order": [
+          "snapshot"
+        ]
+      }
+    },
+    "eval_async": {
+      "function": "eval_async",
+      "input": {
+        "order": [
+          "code",
+          "codeFile",
+          "tag"
+        ]
+      }
+    },
+    "evaluate_logged": {
+      "function": "evaluate_logged",
+      "input": {
+        "order": [
+          "code",
+          "codeFile"
+        ]
+      }
+    },
+    "submit_sweep": {
+      "function": "submit_sweep",
+      "input": {
+        "order": [
+          "scriptPath",
+          "paramsJsonArray",
+          "tag",
+          "numWorkers",
+          "gpu",
+          "attachedFiles",
+          "name"
+        ]
+      }
+    },
+    "sweep_status": {
+      "function": "sweep_status",
+      "input": {
+        "order": [
+          "sweepId",
+          "tail"
+        ]
+      }
+    },
+    "cancel_sweep": {
+      "function": "cancel_sweep",
+      "input": {
+        "order": [
+          "sweepId",
+          "confirm"
+        ]
+      }
+    },
+    "gpu_probe": {
+      "function": "gpu_probe",
+      "input": {
+        "order": [
+          "enable",
+          "samples"
+        ]
+      }
+    },
+    "gpu_mc": {
+      "function": "gpu_mc",
+      "input": {
+        "order": [
+          "funPath",
+          "specJson"
+        ]
+      }
+    },
+    "file_op": {
+      "function": "file_op",
+      "input": {
+        "order": [
+          "action",
+          "target",
+          "optsJson"
+        ]
+      }
+    }
+  }
+}
