@@ -2,59 +2,64 @@
 
 [简体中文](README.md) | [English](README.en.md)
 
-MATLAB MCP Server **扩展层**：基于官方 [matlab/matlab-mcp-server](https://github.com/matlab/matlab-mcp-server)（MathWorks），
-零修改官方代码，经 `--extension-file` 把工具数从 5 个内置扩到 **37 个**（32 自研 .m 工具）。
+官方 [MATLAB MCP Server](https://github.com/matlab/matlab-mcp-server)（MathWorks）的**扩展层**：零修改官方代码，
+通过 `--extension-file` 机制把工具数从 5 个内置扩展到 **37 个**，让 AI 代理获得异步作业、Simulink、GPU、
+文件操作、UI 截图、会话检查点与完整测试流水线等能力。
 
-## 版本记录（官方 exe，不入库，见 .gitignore）
+## 能力一览（37 = 5 内置 + 32 扩展）
 
-| 官方版本 | 文件 | SHA-256 | 备注 |
-|---|---|---|---|
-| v0.13.0 | matlab-mcp-server-windows-x64.exe | `4e065398…`（全值见 0d76df5 提交说明） | 已退役备份 |
-| **v0.14.0**（当前） | matlab-mcp-server-windows-x64.exe（19,502,944 B） | `6697a8962f148628f11d93b36960235871de5614905d6a27c55341c2b83f4118` | 2026-10-12 三方仲裁一致：certutil / Get-FileHash / 本仓库 file_op(sha256)；官方发行页 https://github.com/matlab/matlab-mcp-server/releases/tag/v0.14.0 |
+| 能力块 | 工具 |
+|---|---|
+| 官方内置（5） | evaluate_matlab_code · run_matlab_file · run_matlab_test_file · check_matlab_code · detect_matlab_toolboxes |
+| 异步作业与扫描（9） | submit_job · submit_sweep · sweep_status · cancel_sweep · job_status · list_jobs · cancel_job · eval_async · evaluate_logged |
+| 文件与变量（2） | file_op（读/写/追加/哈希/内容搜索/替换等 14 种操作合一） · get_variable |
+| 图形与会话（5） | capture_figure · capture_app · list_ui · session_info · session_reset |
+| 代码质量与测试（9） | run_tests · check_code_tree · code_refresh · suite_run · suite_status · steps_run · longrun_preflight · resolve_capability · env_report |
+| Simulink 与 GPU（7） | sl_build · sl_sim · sl_compare · gpu_probe · gpu_mc · enable_checkpoint · restore_checkpoint |
 
-> exe 是 MathWorks 专有二进制，本仓库不转发不改动，仅记录版本与指纹；GitHub Release
-> `official-exe-v0.14.0` 为本仓库扩展层所钉扎的官方构建记录。
+## 特色
 
-## 工具构成（37 = 5 内置 + 32 扩展）
+- **证据导向输出**：每个工具都返回可核对的事实——作业落盘 done.json/run.log、套件树指纹、仿真数据自检（min/max/mean）、三方仲裁的文件哈希。
+- **长任务友好**：eval_async + job_status 异步流、suite_run 分片与时间预算、mcp_budget_guard 超窗预警，避免单次调用卡死会话。
+- **schema 修复代理**（`mcp-schema-fix-proxy.mjs`）：可选的 stdio JSON-RPC 代理，为严格校验的 AI 服务商补齐 schema 缺陷、为内置工具追加实测的超时语义说明。只增不改、幂等、未修改帧逐字节透传（详见 [SCHEMA-FIX-README.md](SCHEMA-FIX-README.md)）。
 
-- **官方内置（5）**：evaluate_matlab_code、run_matlab_file、run_matlab_test_file、check_matlab_code、detect_matlab_toolboxes
-- **mcp-jobs.json（16）**：submit_job / submit_sweep / sweep_status / cancel_sweep / job_status / list_jobs / cancel_job / eval_async / evaluate_logged / get_variable / capture_figure / enable_checkpoint / restore_checkpoint / gpu_probe / gpu_mc / file_op
-- **mcp-qa-tools.json（16）**：session_info / env_report / resolve_capability / list_ui / capture_app / run_tests / check_code_tree / code_refresh / longrun_preflight / suite_run / suite_status / steps_run / session_reset / sl_build / sl_sim / sl_compare
-- 实现：`extensions/functions/*.m`（59 个文件，含 helper）；注册表：`extensions/mcp-jobs.json`、`extensions/mcp-qa-tools.json`
+## 环境要求
 
-## schema 修复代理（mcp-schema-fix-proxy.mjs）
+- MATLAB R2025a 或更新（本仓库针对官方 matlab-mcp-server **v0.14.0** windows-x64 测试）
+- 支持 `--extension-file` 自定义工具的 MCP 客户端（Claude Code、DSH 等）
 
-夹在 MCP 客户端与官方 exe 之间的 stdio JSON-RPC 代理，两件事（均只增不改、幂等、未修改帧逐字节透传）：
+## 快速开始
 
-1. **properties 补齐**：官方内置 `detect_matlab_toolboxes` 的 inputSchema 缺 `properties` 键，
-   部分 provider 的 schema 校验会整轮拒绝。代理补齐语义等价的 `properties: {}`。
-2. **内置工具描述增补**：给 evaluate_matlab_code / evaluate_logged / run_matlab_file /
-   run_matlab_test_file / eval_async / list_jobs 的 description 追加两类实测语义（exe 硬编码无法从源头改）：
-   - TIMEOUT SEMANTICS：客户端 ~60s 掐断调用，但引擎继续跑被掐断的任务（队头阻塞）；>45s 的活走
-     eval_async+job_status / suite_run 分片。
-   - CONTINUATION-MODE TRAP：残缺语法（缺 end）使桌面 MATLAB 进入续行模式，其后**一切**工具调用
-     返回空文本且无错误；恢复法 = 向 evaluate_matlab_code 单独发缺失的关键字（如 `end`），缓冲一次性回放。
-     该陷阱已向上游报告：https://github.com/matlab/matlab-mcp-server/issues/123
+1. 克隆本仓库；
+2. 用两个注册表启动官方服务器：
 
-用法与回滚见 [SCHEMA-FIX-README.md](SCHEMA-FIX-README.md)。回归测试：`node proxy.test.mjs`（26 项）、
-`node proxy-backpressure.test.mjs`（17 项），当前均全绿。
+   ```
+   matlab-mcp-server-windows-x64.exe \
+     --matlab-root=<MATLAB安装目录> \
+     --extension-file=<本仓库>/extensions/mcp-jobs.json \
+     --extension-file=<本仓库>/extensions/mcp-qa-tools.json
+   ```
+3. （可选）若你的 AI 服务商对 schema 严格，用代理包住服务器：
 
-## 运行时防护（扩展层自研）
+   ```
+   node mcp-schema-fix-proxy.mjs -- <上面的服务器命令>
+   ```
 
-- `mcp_budget_guard(expectedSec, label)`：长任务入口守卫，>45s 时警告并指路分片方案。
-- `run_tests` 把每次套件实测墙钟写入同目录 `<suite>.mcp_budget`；下次运行前若上次 >45s，先发 BUDGET WARNING。
-  （该文件已 gitignore，属运行时产物。）
-- `run_tests` 项目根推断：`tests/` 约定 + 通用回退（套件目录本身 + 含 `+package` 的父目录）。
+4. 客户端重连后，32 个扩展工具与 5 个内置工具并列可用。
 
-## 已知行为与边界
+## 仓库结构
 
-- 共享单 MATLAB 会话：所有工具调用**串行**（实测 5s+1s 并发=6.4s），无并发逃生通道。
-- 提交作业约定：`out = f(params)`（batch 输出数恒 0，worker 数走 NumWorkersRange；见 mcp_submit_job_core.m 注释）。
-- `sl_sim` paramJson 权威格式 `{"set":[{block,name,value}]}`，兼容 `{"block.param":value}` 速记（下划线分割）。
-- `sl_compare` 时间轴配对约定 `<name>__y` ↔ `<name>__t`；无配对时打印 note 并回退索引时间。
-- `session_reset` 作用域 figures|models|pool|timers|vars(opt-in)；'all' 永不清 vars。
+```
+extensions/
+  functions/*.m        32 个工具实现 + 共享 helper
+  mcp-jobs.json        注册表 1（作业/文件/图形/GPU/检查点，16 工具）
+  mcp-qa-tools.json    注册表 2（会话/测试/Simulink/环境，16 工具）
+  docs/                历版验收记录
+mcp-schema-fix-proxy.mjs   schema 修复代理
+proxy.test.mjs / proxy-backpressure.test.mjs   代理回归测试（node 直接运行）
+```
 
-## 维护约定
+## 许可与归属
 
-- 运行时产物（jobs/ sweeps/ snippets/ exports/ logs/ *.mcp_budget checkpoint*）一律不入库。
-- 对官方 exe 的行为缺陷：先在本仓库复现取证（A/B 复现 ≥2 次），再向上游提 issue，本地做文档/代理层缓解。
+官方 MATLAB MCP Server 二进制与 MATLAB 版权归 **The MathWorks, Inc.**；本仓库仅托管扩展层
+（.m 实现、注册表 JSON、代理脚本），不包含也不修改官方二进制。
