@@ -197,7 +197,7 @@
         "properties": {
           "scope": {
             "type": "string",
-            "description": "\"all\" | \"memory\" | \"toolboxes\" | \"gpu\""
+            "description": "\"\" (standard) | \"full\"/\"all\" (+licenses +job/sweep backlog) | \"lic\" (+licenses) | \"jobs\" (+backlog); \"memory\"/\"toolboxes\"/\"gpu\" are accepted aliases (already covered by the standard report)"
           }
         },
         "required": [

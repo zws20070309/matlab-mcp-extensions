@@ -132,3 +132,21 @@ args: [ "--matlab-root=<MATLABROOT>", "--initialize-matlab-on-startup=false",
 | `child.stdin` 无 `'error'` 监听（子进程死后写入会 EPIPE） | 审查员构造 3 种场景**均未触发**（代理都先退出） | 补一行 `child.stdin.on('error', () => {})` |
 | `isUsableProperties` 会把 `Map`/`Date` 当合法 properties | 不可达（`JSON.parse` 产不出这些） | 无需处理 |
 | `inputSchema: true`（布尔 schema）被替换为等价空对象 | 不可达（MCP 要求 inputSchema 是对象） | 无需处理 |
+
+
+## 第二层功能：内置工具描述增补（2026-10-11/12 追加）
+
+exe 硬编码的内置工具 description 无法从 extensions 侧修改。代理在 `fixToolsListResult` 里对
+6 个内置工具（evaluate_matlab_code / evaluate_logged / run_matlab_file / run_matlab_test_file /
+eval_async / list_jobs）的 description **只增不改**地追加两类实测语义（幂等：已含标记不重复追加）：
+
+1. **TIMEOUT SEMANTICS** —— 客户端 ~60s 掐断调用，但 MATLAB 引擎**继续执行**被掐断的任务，
+   其后所有调用排队到超时（队头阻塞）。实测：75s pause 在 61.4s 被掐、引擎残留 ~30s；
+   90s 测试套件被掐后紧随的轻调用等了 31.8s。>45s 的活走 eval_async+job_status 或 suite_run 分片。
+2. **CONTINUATION-MODE TRAP** —— 残缺语法（for/if/while/switch/try 缺 `end`）使桌面 MATLAB
+   命令窗口进入续行模式，其后**一切**工具调用返回空文本且无错误、无磁盘副作用；
+   恢复法：向 evaluate_matlab_code 单独发缺失的关键字（通常就是 `end`），缓冲一次性回放、引擎复活。
+   实测 A/B 复现 2/2、恢复 2/2；已向上游报告：matlab/matlab-mcp-server#123。
+
+验证：`node proxy.test.mjs` 26/26、`node proxy-backpressure.test.mjs` 17/17、
+`--probe` 全链路 37 工具 + 帧级 JSON 解析确认 3/3 TRAP_DOC。

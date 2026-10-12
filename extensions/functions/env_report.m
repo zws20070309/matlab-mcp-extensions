@@ -9,6 +9,20 @@ function env_report(scope)
 %   probes. This tool makes them one call.
 if nargin < 1, scope = ''; end
 scope = lower(strtrim(mcp_str(scope)));
+% Scope contract (aligned 2026-10-12 with the tool schema): '' = standard
+% report; 'full'/'all' add licenses + job/sweep backlog; 'lic' adds licenses;
+% 'jobs' adds the backlog. 'memory'/'toolboxes'/'gpu' were promised by the
+% tool schema but silently ignored here (they are already part of the standard
+% report) - accept them as aliases now, and WARN on anything else instead of
+% silently falling back (a typo'd scope used to look exactly like success).
+known = {'' , 'full', 'all', 'lic', 'licenses', 'jobs', 'memory', 'toolboxes', 'gpu'};
+if ~any(strcmp(scope, known))
+    warning('env_report:badScope', ...
+        ['Unknown scope "%s" - valid: '''' (standard), ''full''/''all'' (+licenses +job backlog), ' ...
+         '''lic'' (+licenses), ''jobs'' (+backlog); ''memory''/''toolboxes''/''gpu'' are aliases of the ' ...
+         'standard report. Falling back to standard.'], scope);
+    scope = '';
+end
 all_s = any(strcmp(scope, {'full', 'all'}));
 mcp_tool_log('env_report', scope);
 V = ver;
