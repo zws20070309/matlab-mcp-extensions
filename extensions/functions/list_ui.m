@@ -18,7 +18,20 @@ figs = findall(0, 'Type', 'figure');
 if isempty(figs)
     error('list_ui:noFigures', '[list_ui:noFigures] No open figures to inspect');
 end
-if strcmpi(target, 'current')
+if isempty(target) || strcmpi(target, 'current')
+    % Documented contract: "empty lists all". An empty target first prints an
+    % index of every open figure, then details the current one. Without this
+    % the empty string fell through to the Name match below and died with
+    % [list_ui:notFound] even though figures were open (reproduced 2026-10-11:
+    % 1 visible figure, list_ui('') errored while capture_figure worked).
+    if isempty(target) && numel(figs) > 1
+        fprintf('%d open figures:\n', numel(figs));
+        for kk = 1:numel(figs)
+            nm = '';
+            try, nm = figs(kk).Name; catch, end
+            fprintf('  [%s] "%s" (%s)\n', mat2str(figs(kk).Number), char(nm), class(figs(kk)));
+        end
+    end
     try
         fig = gcf;
     catch
@@ -27,7 +40,12 @@ if strcmpi(target, 'current')
 elseif ~isnan(str2double(target)) && ~isempty(target)
     fig = findall(0, 'Type', 'figure', 'Number', str2double(target));
 elseif ischar(target) || isstring(target)
+    % Name first, then Tag: UI apps are conventionally located by Tag and a
+    % Tag-only window used to fail here with notFound (reproduced 2026-10-11).
     fig = findall(0, 'Type', 'figure', 'Name', char(target));
+    if isempty(fig)
+        fig = findall(0, 'Type', 'figure', 'Tag', char(target));
+    end
 else
     error('list_ui:badTarget', '[list_ui:badTarget] target must be ''current'', a figure number, or a figure name');
 end

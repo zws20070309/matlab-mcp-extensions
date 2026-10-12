@@ -10,6 +10,11 @@ jobs/
 sweeps/
 # eval_async 自动生成的临时函数壳 —— 内容里带着调用方的真实绝对路径
 snippets/
+# run_tests 预算守卫写回的上一轮耗时（<测试>.mcp_budget），每次运行都变
+*.mcp_budget
+# 一次性本地验证脚本与抓包帧：里面硬编码了本机路径，不入库
+_verify_*.mjs
+_tools_frame.json
 # evaluate_logged / run_tests 的原始输出落盘
 exports/
 # 统一调用审计流水（时间戳 + 工具名 + 首个参数）

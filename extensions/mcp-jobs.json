@@ -373,7 +373,7 @@
         "properties": {
           "funPath": {
             "type": "string",
-            "description": ".m returning samples, vectorised over N"
+            "description": ".m defining s = fun(u, params): u is the [N,1] gpuArray batch vector the harness allocates (uniform (0,1) unless you transform it), params comes from specJson; return the transformed samples (same size as u)"
           },
           "specJson": {
             "type": "string",

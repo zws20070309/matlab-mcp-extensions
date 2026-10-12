@@ -143,6 +143,12 @@ end
 if tailN > 0
     evd = lines(~cellfun(@isempty, regexp(lines, ...
         ['^(COVERAGE|CERTIFIED|NOT_CERTIFIED|PROGRESS|RUNERR)\|' regexpescape(runId) '\|'], 'once')));
+    if ~isempty(evd)
+        % Without this header the raw evidence records (same two-space indent as
+        % the not-green list above) read as extra not-green files (reproduced
+        % 2026-10-11: COVERAGE/NOT_CERTIFIED lines mistaken for file results).
+        fprintf('log tail (last %d evidence record(s)):\n', min(tailN, numel(evd)));
+    end
     for k = max(1, numel(evd) - tailN + 1):numel(evd)
         fprintf('  %s\n', oneLine(evd{k}, 300));
     end

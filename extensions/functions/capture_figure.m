@@ -19,7 +19,14 @@ if isempty(target) || strcmpi(target, 'current')
 elseif ~isnan(str2double(target)) && ~isempty(target)
     fig = findall(0, 'Type', 'figure', 'Number', str2double(target));
 elseif ischar(target) || isstring(target)
+    % Match Name first, then Tag: UI apps are conventionally identified by Tag
+    % (findobj(0,'Tag','whsAppFig')) while plain figures carry a Name. The
+    % Tag-only case previously failed with notFound even though the window was
+    % open (reproduced 2026-10-11 with a Tag-only probe figure).
     fig = findall(0, 'Type', 'figure', 'Name', char(target));
+    if isempty(fig)
+        fig = findall(0, 'Type', 'figure', 'Tag', char(target));
+    end
 else
     error('capture_figure:badTarget', '[capture_figure:badTarget] target must be ''current'', a figure number, or a figure name');
 end

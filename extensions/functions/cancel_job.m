@@ -53,6 +53,33 @@ end
 [before, ~, ~] = mcp_job_state(hit);
 if any(strcmp(before, {'finished', 'failed', 'cancelled'}))
     fprintf('job %s already in terminal state: %s\n', jobId, before);
+    % Persist the observed cluster state, not just print it. Jobs that died
+    % before their runner started leave meta.json stuck at "queued" with no
+    % done.json, and every file-based tool (sweep_status, cancel_sweep, a later
+    % job_status) then reports a dead job as queued. Reproduced 2026-10-11.
+    metaPath = fullfile(jobDir, 'meta.json');
+    if exist(metaPath, 'file')
+        try
+            meta = jsondecode(fileread(metaPath));
+            meta.status = before;
+            fid = fopen(metaPath, 'w');
+            fwrite(fid, jsonencode(meta));
+            fclose(fid);
+        catch
+        end
+    end
+    if ~exist(donePath, 'file')
+        [~, errId0, errMsg0] = mcp_job_state(hit);
+        rec = struct('status', char(string(before)), ...
+            'identifier', char(string(errId0)), 'message', char(string(errMsg0)), ...
+            'note', 'terminal state observed and recorded by cancel_job; the runner never wrote a record');
+        fid = fopen(donePath, 'w');
+        if fid > 0
+            fwrite(fid, jsonencode(rec));
+            fclose(fid);
+            fprintf('recorded: %s\n', donePath);
+        end
+    end
     return;
 end
 tic;

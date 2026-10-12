@@ -43,7 +43,12 @@ if isempty(target) || strcmpi(target, 'current')
 elseif ~isnan(str2double(target))
     fig = findall(0, 'Type', 'figure', 'Number', str2double(target));
 else
+    % Name first, then Tag (UI apps are usually Tag-identified; a Tag-only app
+    % previously failed capture with notFound, reproduced 2026-10-11).
     fig = findall(0, 'Type', 'figure', 'Name', target);
+    if isempty(fig)
+        fig = findall(0, 'Type', 'figure', 'Tag', target);
+    end
 end
 if isempty(fig)
     error('capture_app:notFound', '[capture_app:notFound] No figure matches target: %s', target);

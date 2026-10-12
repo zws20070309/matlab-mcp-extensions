@@ -18,9 +18,15 @@ if exist(testPath, 'file') ~= 2 && exist(testPath, 'dir') ~= 7
 end
 mcp_tool_log('run_tests', testPath);
 
-% A suite living in <root>/tests usually needs <root> on the search path for
-% +package resolution: the test framework does not search the caller's cwd
-% (verified: fishsim.* failed from cwd until the project root was added).
+% A suite usually needs its project root on the search path for +package
+% resolution: the test framework does not search the caller's cwd (verified:
+% fishsim.* failed from cwd until the project root was added).
+% The root used to be inferred only from a parent directory literally named
+% "tests", so suites in any other folder (suite2/, verify/, regression/)
+% failed with undefined mp.adder-style errors (reproduced 2026-10-11). The
+% parent-of-tests convention is kept and generalised: any immediate parent
+% of the suite directory that contains +packages or the suite's sibling
+% +folders gets added too.
 targetDir = testPath;
 if exist(testPath, 'file') == 2
     targetDir = fileparts(testPath);
@@ -32,8 +38,43 @@ if strcmpi(targetName, 'tests')
         addpath(projectRoot);
         fprintf('run_tests: added project root to path: %s\n', projectRoot);
     end
+else
+    % Generalised fallback: add the suite's own directory and, when it sits
+    % one level under a root holding +packages, that root as well.
+    if ~any(strcmp(cellstr(path), targetDir))
+        addpath(targetDir);
+    end
+    root = fileparts(targetDir);
+    pkgs = dir(fullfile(root, '+*'));
+    if ~isempty(pkgs) && ~any(strcmp(cellstr(path), root))
+        addpath(root);
+        fprintf('run_tests: added sibling-package root to path: %s\n', root);
+    end
 end
 
+% Budget guard (head-of-line blocking prevention, field-proven in session
+% 7ac4a2ae): a suite that took >45 s last time will be killed by the ~60 s MCP
+% client timeout this time, and the engine keeps running it afterwards. Warn
+% before paying that cost again and point at the sharded alternatives.
+if exist(testPath, 'file') == 2
+    budgetFile = [testPath '.mcp_budget'];
+else
+    budgetFile = fullfile(targetDir, 'suite.mcp_budget');
+end
+lastSec = NaN;
+if exist(budgetFile, 'file')
+    try
+        lastSec = str2double(strtrim(fileread(budgetFile)));
+    catch
+    end
+end
+if isfinite(lastSec) && lastSec > 45
+    fprintf(['BUDGET WARNING: this suite took %.0fs last run; the MCP client times calls out at ~60s ' ...
+        'and the engine stays busy afterwards. Prefer suite_run (shards+budgetSec) or ' ...
+        'eval_async+job_status for it.\n'], lastSec);
+end
+
+t0 = tic;
 outDir = fullfile(mcp_ext_root(), 'exports');
 if ~exist(outDir, 'dir')
     mkdir(outDir);
@@ -60,6 +101,15 @@ passed = nnz([results.Passed]);
 failed = nnz([results.Failed]);
 incomplete = nnz([results.Incomplete]);
 totalSec = sum([results.Duration]);
+wallSec = toc(t0);
+try
+    fid = fopen(budgetFile, 'w');
+    if fid > 0
+        fprintf(fid, '%.1f', wallSec);
+        fclose(fid);
+    end
+catch
+end
 fprintf('run_tests: %d/%d passed, %d failed, %d incomplete (%.1f s total)\n', ...
     passed, n, failed, incomplete, totalSec);
 fprintf('full framework output: %s (%d bytes)\n', logFile, numel(captured));
