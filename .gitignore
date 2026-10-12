@@ -15,6 +15,9 @@ snippets/
 # 一次性本地验证脚本与抓包帧：里面硬编码了本机路径，不入库
 _verify_*.mjs
 _tools_frame.json
+# GitHub 直连被墙时的 API 推送/探测脚本：本地基础设施，不是仓库资产
+_push_*.ps1
+_probe_schema.mjs
 # evaluate_logged / run_tests 的原始输出落盘
 exports/
 # 统一调用审计流水（时间戳 + 工具名 + 首个参数）

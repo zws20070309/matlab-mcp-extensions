@@ -26,22 +26,33 @@ switch lower(strtrim(algo))
         error('hash_file:badAlgo', '[hash_file:badAlgo] algo must be sha256|sha512|sha1|md5, got %s', algo);
 end
 md = javaMethod('getInstance', 'java.security.MessageDigest', a);
-fid = fopen(path, 'r', 'n', 'US-ASCII');
-if fid < 0
-    error('hash_file:openFail', '[hash_file:openFail] %s', path);
-end
-cr = onCleanup(@() quietClose(fid)); %#ok<NASGU>
-chunk = 2^20;
+% Stream through java.nio FileChannel + heap ByteBuffer. The data NEVER crosses
+% the MATLAB<->Java array boundary: direct int8->byte[] marshalling mangles every
+% byte >= 0x80 into 0x7F in this R2025a build (found 2026-10-12 hashing the
+% v0.13.0 backup exe: MATLAB said 15690ded..., certutil/GitHub digest said
+% 4e065398.... Pure-ASCII files were unaffected, which is why the v8-v12
+% sweeps never caught it - every binary (exe/mat/png/slx) and every non-ASCII
+% text (Chinese UTF-8 docs) hashed wrong until now.
+pathJ = java.lang.String(path);
+% RandomAccessFile.getChannel() instead of FileChannel.open(Paths.get(...)):
+% Paths.get's (String, String...) varargs overload fails MATLAB method
+% dispatch ("no matching signature"), RandomAccessFile's constructor is plain.
+raf = java.io.RandomAccessFile(pathJ, 'r');
+ch = raf.getChannel();
+cr = onCleanup(@() closeQuietly(raf)); %#ok<NASGU>
+bb = java.nio.ByteBuffer.allocate(2 ^ 20);
 while true
-    [b, n] = fread(fid, chunk, '*uint8');
+    n = ch.read(bb);
+    if n < 0
+        break;
+    end
     if n > 0
-        md.update(int8(b(1:n)'));
+        bb.flip();
+        md.update(bb);
     end
-    if n < chunk
-        break
-    end
+    bb.clear();
 end
-fclose(fid);
+ch.close();
 cr = []; %#ok<NASGU>
 dj = md.digest();
 d = double(dj(:));
@@ -56,11 +67,9 @@ end
 hex = out;
 end
 
-function quietClose(fid)
+function closeQuietly(ch)
 try
-    if fid > 0
-        fclose(fid);
-    end
+    ch.close();
 catch
 end
 end
