@@ -102,6 +102,34 @@ if ~isempty(strtrim(mcp_str(paramJson)))
                 failed{end+1} = sprintf('%s :: %s=%s -> %s', target, nm, vs, strtrim(replace(e.message, newline, ' '))); %#ok<AGROW>
             end
         end
+    else
+        % Compatibility shim for the previously documented {"block.param": value}
+        % shape: jsondecode maps dots to underscores, so "GAIN.Gain" arrives as
+        % field GAIN_Gain. Split at the first underscore: prefix = block id,
+        % rest = parameter name. Anything without a dot is reported as failed
+        % instead of being silently ignored (reproduced 2026-10-11:
+        % applied=0 failed=0 with the documented shape).
+        fns = fieldnames(spec);
+        for k = 1:numel(fns)
+            nm = fns{k};
+            dot = strfind(nm, '_');
+            val = spec.(nm);
+            if isnumeric(val) || islogical(val)
+                vs = mat2str(val);
+            else
+                vs = char(string(val));
+            end
+            if isempty(dot)
+                failed{end+1} = sprintf('%s=%s :: skipped, no dot: use the {"set":[{"block":...,"name":...,"value":...}]} form', nm, vs); %#ok<AGROW>
+                continue
+            end
+            try
+                set_param([mdl '/' nm(1:dot(1)-1)], nm(dot(1)+1:end), vs);
+                applied = applied + 1;
+            catch e
+                failed{end+1} = sprintf('%s/%s :: %s -> %s', mdl, nm, vs, strtrim(replace(e.message, newline, ' '))); %#ok<AGROW>
+            end
+        end
     end
     fprintf('set_param: applied=%d failed=%d\n', applied, numel(failed));
     for k = 1:min(6, numel(failed))

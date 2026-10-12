@@ -96,7 +96,13 @@ if nw > 1
     opt{end+1} = 'NumWorkersRange';
     opt{end+1} = [nw nw];
 end
-j = batch(@mcp_job_runner, nw, {jobDir, scriptPath, paramsJson, gpu}, opt{:});
+% nout must be 0: mcp_job_runner writes its own artifacts (run.log/
+% result.mat/done.json) and returns nothing. Passing nw here made batch
+% request nw outputs from a 0-output function, so every job died before the
+% runner started with MATLAB:TooManyOutputs whenever numWorkers was set
+% (reproduced 2026-10-11: numWorkers='1' -> failed, '' -> finished).
+% The worker count is already conveyed by the NumWorkersRange option above.
+j = batch(@mcp_job_runner, 0, {jobDir, scriptPath, paramsJson, gpu}, opt{:});
 j.Tag = ['mcpjob:' jobId];
 state = char(j.State);
 meta.status = state;

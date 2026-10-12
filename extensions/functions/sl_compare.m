@@ -159,6 +159,11 @@ if numel(ref) > 3 && strcmp(ref(1:3), 'ws:')
                     r.src = [ref ' (time from ' tn ')'];
                 end
             catch
+                % Silent fallback to index time makes a real shift look like a
+                % physics difference (reproduced 2026-10-11: shifted_y without
+                % shifted__t produced a flat-metric FAIL instead of the offset
+                % diagnosis). Name the fallback so the reader can fix the axis.
+                fprintf('  note: %s has no usable sibling time axis in base; using index time 1..%d\n', tn, numel(r.y));
             end
         end
     elseif istable(v)

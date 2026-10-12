@@ -14,11 +14,50 @@ if ~exist(mf, 'file')
 end
 m = jsondecode(fileread(mf));
 ids = cellstr(string(m.jobIds))';
+% One pass over the cluster builds the authoritative state map. Files alone
+% lie about jobs that died before their runner started: meta.json is stuck at
+% "queued" and done.json never appears, so those dead jobs were selected as
+% victims and cancel_job's "already in terminal state" no-ops were still
+% counted as cancelled (reproduced 2026-10-11: cancelled=2 of 2 non-terminal).
+liveState = containers.Map('KeyType', 'char', 'ValueType', 'char');
+try
+    cc = parcluster('local');
+    jj = cc.Jobs;
+    for k = 1:numel(jj)
+        try
+            tg = char(jj(k).Tag);
+            if strncmp(tg, 'mcpjob:', 7) && numel(tg) > 7
+                liveState(tg(8:end)) = char(string(mcp_job_state(jj(k))));
+            end
+        catch
+        end
+    end
+catch
+end
 victims = {};
 for k = 1:numel(ids)
     dp = fullfile(ROOT, 'jobs', ids{k}, 'done.json');
     if exist(dp, 'file')
         continue;   % terminal already; cancelling a finished job is a no-op at best
+    end
+    % A job can be terminal without done.json (died before the runner started,
+    % e.g. the pre-fix TooManyOutputs deaths: meta.json still said "queued"
+    % while the cluster state was failed). Trust meta.json terminal states too,
+    % or cancel_job's "already in terminal state" no-ops were still counted as
+    % cancelled here (reproduced 2026-10-11: cancelled=2 of 2 non-terminal).
+    st = '';
+    mp = fullfile(ROOT, 'jobs', ids{k}, 'meta.json');
+    if exist(mp, 'file')
+        try
+            st = char(string(jsondecode(fileread(mp)).status));
+        catch
+        end
+    end
+    if any(strcmp(st, {'finished', 'failed', 'cancelled'}))
+        continue;
+    end
+    if isKey(liveState, ids{k}) && any(strcmp(liveState(ids{k}), {'finished', 'failed', 'cancelled'}))
+        continue;   % the cluster is the authority when the files are stale
     end
     victims{end+1} = ids{k}; %#ok<AGROW>
 end

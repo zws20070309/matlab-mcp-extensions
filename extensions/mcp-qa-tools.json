@@ -111,7 +111,7 @@
           },
           "paramJson": {
             "type": "string",
-            "description": "{\"block.param\":value} or \"\""
+            "description": "Overrides as {\"set\":[{\"block\":\"BLOCK_ID\",\"name\":\"param\",\"value\":\"...\"}]}; block=\"\" targets a model-level parameter. \"\" = none. (The previously documented {\"block.param\":value} shape was never implemented: jsondecode turns dots into underscores, so those entries were silently ignored.)"
           },
           "outDir": {
             "type": "string",
@@ -208,14 +208,14 @@
     },
     {
       "name": "session_reset",
-      "title": "Clear workspace, figures, path",
-      "description": "Clear the base workspace and/or close figures and reset the path. Destructive: confirm must be the literal word.",
+      "title": "Reset session state (figures/models/pool/timers)",
+      "description": "Close figures, unload models, stop the pool and/or timers. Base-workspace vars are opt-in via 'vars' and are never part of 'all'. Destructive: confirm must be the literal word.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "what": {
             "type": "string",
-            "description": "\"workspace\" | \"figures\" | \"path\" | \"all\""
+            "description": "JSON array or comma list of: figures | models | pool | timers | vars (opt-in). \"\" = figures,models,pool. 'all' never clears vars. There is NO 'path' or 'workspace' scope."
           },
           "confirm": {
             "type": "string",
