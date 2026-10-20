@@ -148,7 +148,31 @@ try
     elseif isnumeric(v) || islogical(v)
         p.kind = 'array';
         fv = double(v(:));
-        if numel(fv) <= CAP
+        if isreal(v) && isinteger(v)
+            % Integer classes must NOT round-trip through double: int64(2^53+1)
+            % loses its last digit (measured 2026-10-20: 9007199254740993 was
+            % emitted as 9.007199254740992E+15). Emit exact decimal strings so a
+            % consumer can parse them without precision loss.
+            if numel(v) <= CAP
+                p.value = int_exact(v);
+                p.note = 'integer values emitted as exact decimal strings to avoid double precision loss';
+            else
+                p.value = int_exact(v(1:min(200, numel(v))));
+                p.note = 'large integer array: first 200 exact values; use mode=csv for all';
+            end
+        elseif ~isreal(v)
+            % jsonencode rejects complex values outright (measured 2026-10-20:
+            % "Unable to encode complex-valued objects of class double"). A
+            % complex variable used to abort the whole json mode instead of
+            % degrading, so emit real/imag explicitly.
+            if numel(v) <= CAP
+                p.value = struct('real', real(v), 'imag', imag(v));
+                p.note = 'complex values split into real/imag (JSON has no native complex type)';
+            else
+                p.value = struct('real', real(v(1:200)), 'imag', imag(v(1:200)));
+                p.note = 'large complex array: first 200 real/imag pairs; use mode=csv for all';
+            end
+        elseif numel(fv) <= CAP
             p.value = reshape(double(v), size(v));
         else
             p.stats = struct('n', numel(fv), 'min', min(fv, [], 'all', 'omitnan'), ...
@@ -173,5 +197,32 @@ catch e
     p.kind = 'error';
     p.note = [e.identifier ': ' e.message];
 end
-js = jsonencode(p);
+% jsonencode itself can throw (complex values, unsupported classes). It used to
+% sit OUTSIDE the try block, so one bad variable aborted the entire tool call
+% (measured 2026-10-20). Degrade to a diagnostic payload instead.
+try
+    js = jsonencode(p);
+catch e
+    p = struct('name', name, 'class', class(v), 'size', mat2str(size(v)), ...
+        'kind', 'unserializable', ...
+        'note', ['jsonencode failed: ' e.identifier ': ' e.message]);
+    js = jsonencode(p);
+end
+end
+
+function out = int_exact(v)
+%INT_EXACT Exact decimal text for integer arrays, shape preserved.
+%   string(v) keeps the class's full precision, unlike double(v) which rounds
+%   int64 values above 2^53. Returns char for scalars (JSON string) and a cell
+%   of char for arrays so the shape survives serialisation.
+if isscalar(v)
+    out = char(string(v));
+    return
+end
+s = string(v);
+if isvector(v)
+    out = cellstr(s(:).');
+else
+    out = cellstr(reshape(s, size(v)));
+end
 end
