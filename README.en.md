@@ -30,7 +30,7 @@ full test pipeline.
 
 ## Requirements
 
-- MATLAB R2025a or newer (tested against the official matlab-mcp-server **v0.14.0**, windows-x64)
+- MATLAB R2025a or newer (tested against the official matlab-mcp-server **v0.15.0**, windows-x64)
 - An MCP client that supports `--extension-file` custom tools (Claude Code, DSH, ...)
 
 ## Quick start

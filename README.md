@@ -25,7 +25,7 @@
 
 ## 环境要求
 
-- MATLAB R2025a 或更新（本仓库针对官方 matlab-mcp-server **v0.14.0** windows-x64 测试）
+- MATLAB R2025a 或更新（本仓库针对官方 matlab-mcp-server **v0.15.0** windows-x64 测试）
 - 支持 `--extension-file` 自定义工具的 MCP 客户端（Claude Code、DSH 等）
 
 ## 快速开始
