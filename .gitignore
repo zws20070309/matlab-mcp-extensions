@@ -40,3 +40,6 @@ _archive/
 .DS_Store
 Thumbs.db
 *.lnk
+
+# 本机运维脚本（含本机路径，不入库）
+tools/
