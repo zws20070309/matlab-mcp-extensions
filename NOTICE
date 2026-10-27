@@ -1,0 +1,100 @@
+NOTICE
+======
+
+This repository is a thin extension layer on top of a third-party program that
+it does not own and does not redistribute. This file states exactly what is
+covered by which licence, so that nobody mistakes the MIT licence on our own
+code for a licence on the MathWorks binary.
+
+--------------------------------------------------------------------------------
+1. WHAT THIS REPOSITORY CONTAINS
+--------------------------------------------------------------------------------
+
+Original work, authored for this repository and licensed MIT (see LICENSE):
+
+  extensions/functions/*.m      32 custom MCP tools + 27 shared helpers = 59 .m files
+  extensions/mcp-jobs.json      tool registry (16 tools)
+  extensions/mcp-qa-tools.json  tool registry (16 tools)
+  mcp-schema-fix-proxy.mjs      stdio JSON-RPC schema-repair proxy
+  extensions/tools/*.js         registry maintenance scripts
+  extensions/v10_fixture/       reproducible test fixture
+  extensions/docs/*.md          measurement and acceptance reports
+  README.md / README.en.md / SCHEMA-FIX-README.md
+
+The repository does NOT contain the official server binary.
+matlab-mcp-server-windows-x64.exe and its platform variants are matched by
+.gitignore and are never committed (see the exe rules near the top of .gitignore).
+
+--------------------------------------------------------------------------------
+2. THE OFFICIAL BINARY IS NOT OURS AND IS NOT MIT
+--------------------------------------------------------------------------------
+
+  Program : MATLAB MCP Server
+  Origin  : https://github.com/matlab/matlab-mcp-server
+  Owner   : Copyright 2025-2026 The MathWorks, Inc. All rights reserved.
+  Licence : a MathWorks custom licence (BSD-3-Clause-style conditions plus an
+            additional restriction). The complete, unmodified text is
+            reproduced verbatim in LICENSE-MathWorks.md in this repository.
+
+That licence is NOT the MIT licence. It differs from MIT/BSD in clause 3:
+
+  "In all cases, the software is, and all modifications and derivatives of
+   the software shall be, licensed to you solely for use in conjunction with
+   MathWorks products and service offerings."
+
+Practical consequences for anyone reusing this repository:
+
+  - Our MIT grant applies to our extension layer only.
+  - The official binary remains governed by LICENSE-MathWorks.md even when it
+    is downloaded into the same folder as our files and loaded with our
+    registries via --extension-file.
+  - Using our tools requires a valid MATLAB installation and licence.
+  - If you redistribute our files together with the official binary, you must
+    carry BOTH licences and BOTH copyright notices, and you must honour the
+    clause 3 restriction above.
+  - The official server must not be shared by multiple users; see the upstream
+    README for the MathWorks statement on shared or centralised server use.
+
+--------------------------------------------------------------------------------
+3. THIRD-PARTY COMPONENTS INSIDE THE OFFICIAL BINARY
+--------------------------------------------------------------------------------
+
+The official server bundles Go dependencies whose licences are governed by
+their own terms. They are catalogued in the upstream repository's "licenses"
+directory (for example the Model Context Protocol Go SDK, OpenTelemetry, and
+others). Those terms are not reproduced here and are not affected by our MIT
+grant. Consult the upstream repository for the authoritative list.
+
+--------------------------------------------------------------------------------
+4. HOW WE VERIFY WHICH BINARY WE TESTED AGAINST
+--------------------------------------------------------------------------------
+
+Reports under extensions/docs/ record the exact build used for each round of
+measurements. Binaries are identified by SHA-256 rather than by file name,
+because the file name carries no version information:
+
+  v0.14.0 windows-x64 : 6697a8962f148628f11d93b36960235871de5614905d6a27c55341c2b83f4118
+  v0.15.0 windows-x64 : a1f67dd917c5731f88399e1671ebe4f6959d2fd520c78dcaa1faf3ad37ea9518
+
+Always prefer the official release page over any mirror.
+
+--------------------------------------------------------------------------------
+5. NO AFFILIATION
+--------------------------------------------------------------------------------
+
+This project is not affiliated with, endorsed by, or supported by The
+MathWorks, Inc. "MATLAB", "Simulink", and "MathWorks" are trademarks of
+The MathWorks, Inc. They are used here only to describe what this extension
+layer interoperates with.
+
+--------------------------------------------------------------------------------
+6. SUMMARY TABLE
+--------------------------------------------------------------------------------
+
+  Component                          Owner              Licence
+  ---------------------------------  -----------------  ----------------------
+  extensions/ layer, proxy, docs     zws20070309        MIT (LICENSE)
+  official server binary             The MathWorks, Inc. MathWorks custom
+                                                        (LICENSE-MathWorks.md)
+  MATLAB / Simulink                  The MathWorks, Inc. Proprietary, licensed
+  Go deps inside official binary     respective authors  see upstream licenses/

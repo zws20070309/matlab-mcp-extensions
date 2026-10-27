@@ -61,5 +61,14 @@ proxy.test.mjs / proxy-backpressure.test.mjs   代理回归测试（node 直接�
 
 ## 许可与归属
 
-官方 MATLAB MCP Server 二进制与 MATLAB 版权归 **The MathWorks, Inc.**；本仓库仅托管扩展层
-（.m 实现、注册表 JSON、代理脚本），不包含也不修改官方二进制。
+**本仓库的原创代码采用 MIT 许可**：见 [LICENSE](LICENSE)。覆盖范围为 `extensions/` 下的 32 个 `.m` 工具、两个注册表、schema 修复代理、辅助脚本与文档。
+
+**官方 MATLAB MCP Server 二进制不属于本仓库，也不适用 MIT**：
+
+- 版权：Copyright 2025-2026 The MathWorks, Inc. All rights reserved.
+- 许可证：MathWorks 自定义许可证（BSD-3 形式条款 + 第 3 条限制），全文逐字收录于 [LICENSE-MathWorks.md](LICENSE-MathWorks.md)。
+- 第 3 条：该软件及其任何修改与衍生版，仅授予在与 MathWorks 产品与服务配合使用时使用。
+
+本仓库不包含官方二进制（`.gitignore` 已屏蔽），也不修改官方代码。完整声明与三层许可对照表见 [NOTICE](NOTICE)。
+
+MATLAB、Simulink、MathWorks 是 The MathWorks, Inc. 的商标。本项目与 MathWorks 无隶属关系，亦未获得其认可或支持。

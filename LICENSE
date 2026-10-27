@@ -1,0 +1,49 @@
+MIT License
+
+Copyright (c) 2026 zws20070309
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+SCOPE — READ THIS BEFORE REUSING ANYTHING FROM THIS REPOSITORY
+
+The MIT grant above covers ONLY the original material authored for this
+repository: the 32 custom extension tools (59 .m files including helpers) under extensions/functions/,
+the tool registries extensions/*.json, the stdio JSON-RPC proxy
+mcp-schema-fix-proxy.mjs, the helper scripts under extensions/tools/, and
+the documentation under extensions/docs/.
+
+It does NOT cover, and must never be read as covering:
+
+  1. The official MATLAB MCP Server binary (matlab-mcp-server-windows-x64.exe
+     and its platform variants). That program is Copyright 2025-2026
+     The MathWorks, Inc., All rights reserved, and is distributed under a
+     separate licence reproduced verbatim in LICENSE-MathWorks.md. It is not
+     stored in this repository; obtain it from the official release page.
+  2. MATLAB, Simulink, or any other MathWorks product. Those are proprietary
+     and require a valid MathWorks licence.
+  3. Any third-party component that the official server itself bundles. See
+     the official repository's "licenses" directory for those terms.
+
+If you redistribute this repository together with the official binary, you
+must satisfy the MathWorks conditions in LICENSE-MathWorks.md in addition to
+the MIT condition above — including retaining their copyright notice, their
+list of conditions, their disclaimer, and their clause 3 restriction that the
+software be licensed solely for use in conjunction with MathWorks products.
+See NOTICE for the full declaration.

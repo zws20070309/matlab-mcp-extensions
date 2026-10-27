@@ -66,6 +66,20 @@ proxy.test.mjs / proxy-backpressure.test.mjs   proxy regression suites (run with
 
 ## License & attribution
 
-The official MATLAB MCP Server binary and MATLAB are copyright **The MathWorks, Inc.**
-This repository hosts only the extension layer (.m implementations, registry JSON, proxy scripts);
-it contains no official binary and modifies no official code.
+**The original code in this repository is MIT-licensed** (see [LICENSE](LICENSE)). That grant
+covers the 32 custom `.m` tools under `extensions/`, both tool registries, the schema-fix proxy,
+the helper scripts, and the documentation.
+
+**The official MATLAB MCP Server binary is not part of this repository and is NOT MIT.**
+
+- Copyright 2025-2026 The MathWorks, Inc. All rights reserved.
+- Licence: a MathWorks custom licence (BSD-3-Clause-style conditions plus an extra restriction);
+  the complete text is reproduced verbatim in [LICENSE-MathWorks.md](LICENSE-MathWorks.md).
+- Clause 3: the software and all modifications or derivatives are licensed to you solely for use
+  in conjunction with MathWorks products and service offerings.
+
+This repository contains no official binary (it is matched by `.gitignore`) and modifies no official
+code. See [NOTICE](NOTICE) for the full declaration and the three-layer licence table.
+
+MATLAB, Simulink, and MathWorks are trademarks of The MathWorks, Inc. This project is not
+affiliated with, endorsed by, or supported by The MathWorks, Inc.
