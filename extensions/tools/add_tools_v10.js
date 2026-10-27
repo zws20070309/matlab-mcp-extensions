@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const EXT = '<REPO_ROOT>/extensions';
+const EXT = path.join(__dirname, '..');
 const QA = path.join(EXT, 'mcp-qa-tools.json');
 const JOBS = path.join(EXT, 'mcp-jobs.json');
 

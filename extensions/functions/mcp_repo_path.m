@@ -4,7 +4,7 @@ function p = mcp_repo_path(repoRoot, relp)
 %   session's current folder". Using exist() to decide instead is unsafe here:
 %   exist('tools','dir') searches the whole MATLAB path (2600+ entries on this
 %   host) and answered that a folder called 'tools' exists, which made a step
-%   path silently resolve against <USER_HOME>\Documents - a wrong addpath and a
+%   path silently resolve against the MATLAB startup folder - a wrong addpath and a
 %   wrong target file, both without an error.
 p = '';
 relp = strtrim(mcp_str(relp));

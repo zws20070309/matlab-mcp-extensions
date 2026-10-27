@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const root = '<REPO_ROOT>/extensions/v10_fixture';
+const root = path.join(__dirname, 'v10_fixture');
 const dirs = ['tests/unit', 'tests/integration', 'docs', 'tools', 'src'];
 for (const d of dirs) fs.mkdirSync(path.join(root, d), {recursive: true});
 

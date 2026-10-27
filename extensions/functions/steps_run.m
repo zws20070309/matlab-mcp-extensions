@@ -214,7 +214,7 @@ end
 end
 
 function steps = closeout_steps(repoRoot)
-% Default order for the <OTHER_REPO>-style pure-MATLAB repository. Read from
+% Default order for the pure-MATLAB repository. Read from
 % docs/closeout_steps.json when the repository ships one, so the repo owns the
 % order and this tool does not hard-code a project's numbers.
 custom = fullfile(repoRoot, 'docs', 'closeout_steps.json');

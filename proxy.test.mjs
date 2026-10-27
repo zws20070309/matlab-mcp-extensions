@@ -1,5 +1,5 @@
 // 代理的纯逻辑单元测试（不启动真服务器，快速回归）。
-// 运行：node <REPO_ROOT>\proxy.test.mjs
+// 运行：node proxy.test.mjs
 import assert from 'node:assert/strict'
 import {
   parseArgv,

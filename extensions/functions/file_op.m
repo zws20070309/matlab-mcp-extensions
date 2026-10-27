@@ -368,7 +368,7 @@ function t = mcp_decode(b, enc)
 %   UTF-8 multi-byte text (any non-ASCII path on this machine) into mojibake even
 %   when fopen was given the right encoding - fopen's encoding argument only
 %   applies to text-class reads. This was the real cause of the garbled
-%   <WORKSPACE>/... paths seen while reading tools.log; the log writer itself was
+%   non-ASCII Windows paths seen while reading tools.log; the log writer itself was
 %   already UTF-8 (confirmed at byte level).
 t = '';
 try

@@ -2,6 +2,7 @@
 // Contract preserved: tools[].inputSchema.required == signatures.<tool>.input.order,
 // every property described, additionalProperties:false. Run: node slim_docs_v11.js
 const fs = require('fs');
+const path = require('path');
 
 const D = {
   // ---- mcp-qa-tools.json -------------------------------------------------
@@ -139,9 +140,9 @@ function apply(file) {
 }
 
 for (const f of ['mcp-qa-tools.json', 'mcp-jobs.json']) {
-  const p = '<REPO_ROOT>/extensions/' + f;
+  const p = path.join(__dirname, '..', f);
   const j = JSON.parse(fs.readFileSync(p, 'utf8'));
   for (const t of j.tools) if (!D[t.name]) { console.error('unmapped tool: ' + t.name); process.exit(1); }
   apply(p);
 }
-console.log('total now: ' + (fs.statSync('<REPO_ROOT>/extensions/mcp-qa-tools.json').size + fs.statSync('<REPO_ROOT>/extensions/mcp-jobs.json').size) + ' bytes');
+console.log('total now: ' + (fs.statSync(path.join(__dirname, '..', 'mcp-qa-tools.json')).size + fs.statSync(path.join(__dirname, '..', 'mcp-jobs.json')).size) + ' bytes');
