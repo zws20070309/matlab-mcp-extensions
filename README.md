@@ -61,7 +61,7 @@ proxy.test.mjs / proxy-backpressure.test.mjs   代理回归测试（node 直接�
 
 ## 许可与归属
 
-**本仓库的原创代码采用 MIT 许可**：见 [LICENSE](LICENSE)。覆盖范围为 `extensions/` 下的 32 个 `.m` 工具、两个注册表、schema 修复代理、辅助脚本与文档。
+**本仓库的原创代码采用 MIT 许可**：见 [LICENSE](LICENSE)（纯 MIT 正文）。许可范围（32 个工具 / 59 个 `.m`、两个注册表、代理、脚本、文档）与排除项见 [NOTICE](NOTICE)。
 
 **官方 MATLAB MCP Server 二进制不属于本仓库，也不适用 MIT**：
 

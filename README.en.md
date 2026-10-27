@@ -66,9 +66,8 @@ proxy.test.mjs / proxy-backpressure.test.mjs   proxy regression suites (run with
 
 ## License & attribution
 
-**The original code in this repository is MIT-licensed** (see [LICENSE](LICENSE)). That grant
-covers the 32 custom `.m` tools under `extensions/`, both tool registries, the schema-fix proxy,
-the helper scripts, and the documentation.
+**The original code in this repository is MIT-licensed** (see [LICENSE](LICENSE), plain MIT text).
+The exact scope and exclusions are spelled out in [NOTICE](NOTICE).
 
 **The official MATLAB MCP Server binary is not part of this repository and is NOT MIT.**
 

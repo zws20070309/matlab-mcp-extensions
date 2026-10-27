@@ -6,6 +6,25 @@ it does not own and does not redistribute. This file states exactly what is
 covered by which licence, so that nobody mistakes the MIT licence on our own
 code for a licence on the MathWorks binary.
 
+
+--------------------------------------------------------------------------------
+0. SCOPE OF THE MIT GRANT (short form)
+--------------------------------------------------------------------------------
+
+The MIT grant in LICENSE covers ONLY the original material authored for this
+repository: the 32 custom extension tools (59 .m files including helpers) under
+extensions/functions/, the tool registries extensions/*.json, the stdio JSON-RPC
+proxy mcp-schema-fix-proxy.mjs, the helper scripts under extensions/tools/, the
+v10_fixture test fixture, and the documentation under extensions/docs/.
+
+It does NOT cover, and must never be read as covering, the official MATLAB MCP
+Server binary (see section 2), MATLAB or Simulink themselves, or any third-party
+component bundled inside the official binary (see section 3).
+
+If you redistribute this repository together with the official binary you must
+satisfy the MathWorks conditions in LICENSE-MathWorks.md in addition to the MIT
+condition above, including retaining their copyright notice, their list of
+conditions, their disclaimer, and their clause 3 restriction.
 --------------------------------------------------------------------------------
 1. WHAT THIS REPOSITORY CONTAINS
 --------------------------------------------------------------------------------
