@@ -107,7 +107,11 @@ end
 expFiles = NaN;
 expCases = NaN;
 if isfield(o, 'countsJson') && ~isempty(strtrim(mcp_str(o.countsJson)))
-    cj = mcp_str(o.countsJson);
+    % Resolve against repoRoot like every other repo-relative path: a bare
+    % 'docs/counts.json' used to be tested against the SESSION's current folder,
+    % silently skipped, and the run certified with the accounts "NOT proven"
+    % even though the caller had supplied the file (reproduced 2026-10-28).
+    cj = mcp_repo_path(repoRoot, mcp_str(o.countsJson));
     if exist(cj, 'file') == 2
         txt = mcp_read_text(cj);
         try
@@ -117,6 +121,8 @@ if isfield(o, 'countsJson') && ~isempty(strtrim(mcp_str(o.countsJson)))
         catch e
             mcp_log_append(logPath, [ 'RUNERR|' runId '|counts_json|' e.identifier]);
         end
+    else
+        mcp_log_append(logPath, ['RUNERR|' runId '|counts_json|not found: ' cj]);
     end
 end
 % ---- 4. resume set -----------------------------------------------------

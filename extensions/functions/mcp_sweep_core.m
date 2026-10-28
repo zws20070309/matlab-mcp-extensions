@@ -51,14 +51,24 @@ for k = 1:numel(parts)
         skipped{end+1} = sprintf('#%d %s', k, e.message); %#ok<AGROW>
     end
 end
-good = ~cellfun('isempty', jobIds) & ~startsWith(string(jobIds), 'SUBMIT_FAILED');
+% Element-wise, never string(cellWithEmptySlots): a slot whose element failed
+% jsondecode stays [] and string({[]}) throws "元素 3 必须可转换为字符串标量",
+% which killed the whole submit AFTER the earlier jobs were already queued -
+% they were left with no sweep manifest, unreachable by sweep_status/cancel_sweep
+% (reproduced 2026-10-28: '[{"seconds":2},{"seconds":3},notjson,{}]').
+good = cellfun(@(e) ~isempty(e) && ~(ischar(e) && startsWith(e, 'SUBMIT_FAILED')), jobIds);
 [~, fnOnly, ~] = fileparts(mcp_str(scriptPath));
+% The manifest stores '' for failed slots, never a bare []: jsonencode turns []
+% into null and jsondecode hands it back as [], which crashes the readers'
+% cellstr(string(...)) the same way this file crashed before the fix above.
+jobIdsOut = jobIds;
+jobIdsOut(cellfun(@isempty, jobIdsOut)) = {''};
 man = struct('sweepId', sweepId, 'name', name, 'tag', tag, ...
     'scriptPath', mcp_str(scriptPath), ...
     'fnName', fnOnly, ...
     'createdAt', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), ...
     'numWorkers', mcp_num(numWorkers, 0), 'gpu', mcp_str(gpu), ...
-    'count', numel(parts), 'jobIds', {jobIds}, 'params', {paramsUsed}, ...
+    'count', numel(parts), 'jobIds', {jobIdsOut}, 'params', {paramsUsed}, ...
     'submitted', {jobIds(good)}, 'skipped', {skipped});
 d = fullfile(ROOT, 'sweeps');
 if ~exist(d, 'dir')

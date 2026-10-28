@@ -34,13 +34,30 @@ catch
 end
 mdl = modelPath;
 [fp, fn, ext] = fileparts(modelPath);
-if strcmpi(ext, '.slx') || strcmpi(ext, '.slx.bak') || (~isempty(ext) && ~isempty(fp) && exist(modelPath, 'file') == 2)
+staged = '';
+if strcmpi(ext, '.slx') || strcmpi(ext, '.mdl')
     try
         close_system(fn, 0);
     catch
     end
     si = load_system(modelPath);
     mdl = fn;
+elseif ~isempty(ext) && ~isempty(fp) && exist(modelPath, 'file') == 2
+    % Backup copies (model.slx.bak) and other non-model extensions: load_system
+    % derives the model name from the file name, and 'review_model.slx' (with
+    % the dot) is not a valid model name, so the load died with "不是有效的模型
+    % 名称" (reproduced 2026-10-28). Stage a copy under a legal name instead.
+    stageDir = fullfile(tempdir, 'mcp_sl_staged');
+    if ~exist(stageDir, 'dir'), mkdir(stageDir); end
+    stageName = regexprep(fn, '[^A-Za-z0-9_]', '_');
+    staged = fullfile(stageDir, [stageName '.slx']);
+    copyfile(modelPath, staged, 'f');
+    try
+        close_system(stageName, 0);
+    catch
+    end
+    si = load_system(staged);
+    mdl = stageName;
 else
     try
         load_system(modelPath);
@@ -142,10 +159,16 @@ if ~isempty(st)
     try
         v = str2double(st);
         if isnan(v)
-            v = st;
+            % Non-numeric: a base-workspace variable name or an expression.
+            % mat2str on a CHAR produced its numeric code points ('myStopVar'
+            % -> '[109 121 ...]'), sim() then died with an invalid StopTime
+            % (reproduced 2026-10-28). Pass the text through verbatim.
+            vs = st;
+        else
+            vs = mat2str(v);
         end
-        set_param(mdl, 'StopTime', mat2str(v));
-        stopApplied = mat2str(v);
+        set_param(mdl, 'StopTime', vs);
+        stopApplied = vs;
     catch e
         fprintf('STOPTIME_FAIL %s\n', e.message);
     end
@@ -231,6 +254,22 @@ if keep && nSig > 0
     fprintf('base-workspace copies available as <name>__t / <name>__y\n');
 end
 fprintf('next: sl_compare("ws:yourMatlabSignal","ws:simout__y","") to judge them with shift search\n');
+% keepInSession=0 means the model is NOT left loaded: unload what this call
+% loaded (the schema documents "true leaves the model loaded"; the old build
+% never unloaded in either mode).
+if ~keep
+    try
+        if ~isempty(staged)
+            close_system(mdl, 0);
+            delete(staged);
+        elseif strcmpi(ext, '.slx') || strcmpi(ext, '.mdl')
+            close_system(mdl, 0);
+        else
+            close_system(mdl, 0);
+        end
+    catch
+    end
+end
 rest = [];
 warning(prevW);
 end

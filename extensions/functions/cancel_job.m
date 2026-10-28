@@ -82,7 +82,6 @@ if any(strcmp(before, {'finished', 'failed', 'cancelled'}))
     end
     return;
 end
-tic;
 cancel(hit);
 pause(1);
 [after, errId, errMsg] = mcp_job_state(hit);

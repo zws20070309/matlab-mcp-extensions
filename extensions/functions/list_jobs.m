@@ -126,7 +126,10 @@ parts = cell(1, numel(tf));
 for k = 1:numel(tf)
     parts{k} = sprintf('%s=%d', tf{k}, tally.(tf{k}));
 end
-fprintf('%d listed of %d matching jobs | all states: %s\n', shown, seen, strjoin(parts, ' '));
+% seen counts every job directory (the tally above covers all states), not
+% only the filtered matches - say so plainly instead of "matching jobs",
+% which read as if 106 jobs had matched a one-tag filter (seen 2026-10-28).
+fprintf('%d listed of %d known jobs | all states: %s\n', shown, seen, strjoin(parts, ' '));
 if shown < seen
     fprintf('(raise limit to see more of the matching jobs)\n');
 end

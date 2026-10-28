@@ -13,7 +13,23 @@ if ~exist(mf, 'file')
     error('cancel_sweep:notFound', '[cancel_sweep:notFound] No manifest for sweepId %s (list with sweep_status(""))', sweepId);
 end
 m = jsondecode(fileread(mf));
-ids = cellstr(string(m.jobIds))';
+% Sanitize, never cellstr(string(...)) raw: a null slot in the manifest decodes
+% back to [] and string({[]}) throws (same class as the mcp_sweep_core
+% submit-side crash fixed 2026-10-28).
+idsRaw = m.jobIds;
+if ~iscell(idsRaw), idsRaw = {idsRaw}; end
+ids = cell(1, numel(idsRaw));
+for k = 1:numel(idsRaw)
+    v = idsRaw{k};
+    if ischar(v) || isstring(v)
+        ids{k} = char(string(v));
+    else
+        ids{k} = '';
+    end
+end
+% A never-submitted slot (invalid params element) is empty after sanitizing:
+% it has no job to cancel and would otherwise be selected as an empty victim.
+ids = ids(~cellfun(@isempty, ids));
 % One pass over the cluster builds the authoritative state map. Files alone
 % lie about jobs that died before their runner started: meta.json is stuck at
 % "queued" and done.json never appears, so those dead jobs were selected as

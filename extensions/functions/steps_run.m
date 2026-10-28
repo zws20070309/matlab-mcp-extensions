@@ -141,7 +141,10 @@ mcp_log_append(logPath, v);
 fprintf('%s\n', v);
 fprintf('log: %s\n', logPath);
 if abortedAt > 0
-    fprintf('NOT finished: %d step(s) ran, %d remain.\n', k - 1, numel(steps) - k);
+    % The step that failed DID run (its failure aborted the chain), so the
+    % count is k, not k-1: for a 1-step chain "0 ran, 0 remain" read as if
+    % nothing had happened.
+    fprintf('NOT finished: %d step(s) ran, %d remain.\n', k, numel(steps) - k);
     fprintf('the abort is real: fix the cause and rerun the whole list from step 1 unless a step is idempotent-safe to skip.\n');
     fprintf('first failure: %s\n', abortMsg);
 elseif bad > 0

@@ -85,7 +85,15 @@ logFile = fullfile(outDir, sprintf('test_%s.log', ...
 S = struct('p', testPath); %#ok<NASGU> % referenced by the evalc expression
 % evalc evaluates in this function's scope, so S resolves here; runtests
 % does not need base-workspace semantics (tests run in their own contexts).
-captured = evalc('results = runtests(S.p);');
+% A FOLDER is discovered recursively: runtests(folder) does NOT descend into
+% subfolders, so the standard repo/tests/unit/... layout silently discovered
+% 0 tests and the old build still printed ALL PASSED - a green certification
+% of nothing (reproduced 2026-10-28 on a tests/unit+tests/integration tree).
+if exist(testPath, 'dir') == 7
+    captured = evalc('results = run(matlab.unittest.TestSuite.fromFolder(S.p, ''IncludingSubfolders'', true));');
+else
+    captured = evalc('results = runtests(S.p);');
+end
 
 fid = fopen(logFile, 'w');
 if fid < 0
@@ -97,6 +105,13 @@ fclose(fid);
 c = [];
 
 n = numel(results);
+if n == 0
+    % Empty discovery is a NO-GO, never a green run: same rule as suite_run's
+    % noFiles error. A misnamed test_ file or a wrong path must not read as a pass.
+    fprintf('run_tests: 0 tests discovered under %s - NOT A PASS (empty suite)\n', testPath);
+    fprintf('full framework output: %s (%d bytes)\n', logFile, numel(captured));
+    return
+end
 passed = nnz([results.Passed]);
 failed = nnz([results.Failed]);
 incomplete = nnz([results.Incomplete]);

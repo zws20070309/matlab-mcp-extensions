@@ -44,7 +44,20 @@ if ~exist(mf, 'file')
     error('sweep_status:notFound', '[sweep_status:notFound] No manifest for sweepId %s (list with sweep_status(""))', sweepId);
 end
 m = jsondecode(fileread(mf));
-ids = cellstr(string(m.jobIds))';
+% Sanitize, never cellstr(string(...)) raw: a null slot in the manifest decodes
+% back to [] and string({[]}) throws, killing the whole poll (same class as the
+% mcp_sweep_core submit-side crash fixed 2026-10-28).
+idsRaw = m.jobIds;
+if ~iscell(idsRaw), idsRaw = {idsRaw}; end
+ids = cell(1, numel(idsRaw));
+for k = 1:numel(idsRaw)
+    v = idsRaw{k};
+    if ischar(v) || isstring(v)
+        ids{k} = char(string(v));
+    else
+        ids{k} = '';
+    end
+end
 fprintf('sweepId: %s   name: %s   fn: %s   created: %s\n', m.sweepId, m.name, m.fnName, m.createdAt);
 fprintf('jobs: %d\n', numel(ids));
 count = struct('finished', 0, 'failed', 0, 'cancelled', 0, 'running', 0, 'queued', 0, 'other', 0);
@@ -52,6 +65,17 @@ el = [];
 fails = {};
 for k = 1:numel(ids)
     jobDir = fullfile(ROOT, 'jobs', ids{k});
+    if isempty(ids{k})
+        state = 'not-submitted';
+        e = NaN;
+        errId = '';
+        summ = '';
+        if k <= nMax
+            fprintf('  [%2d] %-30s %-10s %8s %s\n', k, '(empty slot)', state, '-', summ);
+        end
+        count.other = count.other + 1;
+        continue
+    end
     state = 'no-dir';
     e = NaN;
     errId = '';
@@ -70,7 +94,10 @@ for k = 1:numel(ids)
             dn = jsondecode(fileread(dp));
             state = char(dn.status);
             if isfield(dn, 'elapsedSec'), e = double(dn.elapsedSec); end
-            if isfield(dn, 'message'), errId = char(string(dn.identifier)); end
+            % Field pair aligned: the old condition tested 'message' but read
+            % 'identifier', which threw (and silently dropped the error id)
+            % on any record carrying message without identifier.
+            if isfield(dn, 'identifier'), errId = char(string(dn.identifier)); end
             if isfield(dn, 'outSummary')
                 s = char(string(dn.outSummary));
                 if numel(s) > 70, s = [s(1:70) '...']; end
@@ -105,14 +132,17 @@ if numel(ids) > nMax
     fprintf('  ... %d rows hidden (tail=%g)\n', numel(ids) - nMax, nMax);
 end
 done = count.finished + count.failed + count.cancelled;
+% Terminal math must not count slots that were never submitted (an invalid
+% params element leaves an empty id): they are shown as rows but are not work.
+nReal = nnz(~cellfun(@isempty, ids));
 fprintf('SUMMARY finished=%d failed=%d cancelled=%d running=%d queued=%d other=%d  -> %d/%d terminal\n', ...
-    count.finished, count.failed, count.cancelled, count.running, count.queued, count.other, done, numel(ids));
+    count.finished, count.failed, count.cancelled, count.running, count.queued, count.other, done, nReal);
 if ~isempty(el)
     tot = sum(el);
     fprintf('compute: total=%.1fs median=%.2fs min=%.2fs max=%.2fs (worker time only, excludes the ~10-15 s per-job boot)\n', ...
         tot, median(el), min(el), max(el));
-    if done < numel(ids)
-        remaining = numel(ids) - done;
+    if done < nReal
+        remaining = nReal - done;
         cores = feature('numcores');
         fprintf('eta: %d jobs left, ~%.0f s of compute / %d cores -> >= %.0f s plus queue\n', ...
             remaining, tot / max(done, 1) * remaining, cores, ...

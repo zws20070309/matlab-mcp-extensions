@@ -22,7 +22,9 @@ if isempty(rawT)
 elseif rawT(1) == '['
     try
         a = jsondecode(rawT);
-        items = cellstr(string(a(:)'));
+        % lower() here too: the comma branch is case-insensitive, the JSON
+        % branch was not, so ["FIGURES"] silently did nothing.
+        items = lower(cellstr(string(a(:)')));
     catch e
         error('session_reset:badWhat', '[session_reset:badWhat] %s', e.message);
     end

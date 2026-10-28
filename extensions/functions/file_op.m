@@ -351,7 +351,9 @@ switch action
         end
         fwrite(fid, unicode2native(out, 'UTF-8'));
         fclose(fid);
-        fprintf('substituted %d occurrence(s) in %s (%d -> %d bytes)\n', numel(hits), target, numel(txt), numel(out));
+        % numel() counts CHARS, not bytes - a Chinese string differs from its
+        % UTF-8 byte size, so say chars (the write action reports real bytes).
+        fprintf('substituted %d occurrence(s) in %s (%d -> %d chars)\n', numel(hits), target, numel(txt), numel(out));
         if ~isempty(bak)
             fprintf('backup: %s\n', bak);
         end

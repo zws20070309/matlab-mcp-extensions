@@ -201,7 +201,7 @@ function isUsableProperties(value) {
  * @param {string[]} warnings - 收集「可疑但不自动修」的发现。
  * @returns {void}
  */
-export // ── 内置工具描述增补（2026-10-11 队头阻塞事故后追加）────────────────────────
+// ── 内置工具描述增补（2026-10-11 队头阻塞事故后追加）────────────────────────
 // 内置工具的 description 在 exe 里硬编码，无法从 extensions 侧修改。这里在
 // tools/list 转发时对少数内置工具的 description 做 **只增不改** 的追加：把
 // "~60s 客户端超时 + 超时后引擎仍占用" 的语义写进文档，防止代理再写出
@@ -918,17 +918,3 @@ if (invokedDirectly) {
     process.exit(1)
   })
 }
-
-/**
- * 检查一个工具的 inputSchema 是否合法；不合法则就地修复。
- *
- * 三种缺陷都处理：
- *   ① inputSchema 缺失 / 为 null  → 补 `{type:'object',properties:{}}`
- *   ② inputSchema 不是对象（例如字符串、数组）→ 替换为等价空对象 schema
- *   ③ inputSchema 是对象但缺 properties（**用户这次的真实病根**）→ 补 `properties:{}`
- *
- * @param {object} tool - MCP tools/list 里的一个工具定义。
- * @param {string[]} changed - 收集被修补的描述。
- * @param {string[]} warnings - 收集自查发现。
- * @returns {void}
- */

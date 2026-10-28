@@ -75,8 +75,18 @@ fprintf('rehash             : done\n');
 if ~doClear
     fprintf('clear functions    : SKIPPED (no +package/@class tree) - if you edited a package function, pass clearFunctions=true\n');
 end
-if isfield(o, 'lint') && any(double(o.lint(:)) ~= 0)
-    fprintf('--- lint of the refreshed tree ---\n');
-    check_code_tree(tree, '*.m', 'error');
+if isfield(o, 'lint')
+    % String-aware truthiness: any(double(char)) treated EVERY non-empty
+    % string as true, so "lint":"false" switched the lint ON.
+    v = o.lint;
+    if ischar(v) || isstring(v)
+        doLint = any(strcmp(lower(strtrim(char(string(v)))), {'1', 'true', 'yes', 'on'}));
+    else
+        doLint = any(double(v(:)) ~= 0);
+    end
+    if doLint
+        fprintf('--- lint of the refreshed tree ---\n');
+        check_code_tree(tree, '*.m', 'error');
+    end
 end
 end

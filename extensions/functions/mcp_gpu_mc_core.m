@@ -96,7 +96,12 @@ while done < Ntot
     if ~isa(acc, 'gpuArray')
         acc = gpuArray(acc);
     end
-    if isvector(acc) && numel(acc) ~= nc
+    if isrow(acc) && numel(acc) == nc
+        % One quantity PER SAMPLE arriving as a row: reshape to a column, or
+        % every element is counted as its own column of one sample and the
+        % per-column statistics become nonsense (the contract is nc x m).
+        acc = acc(:);
+    elseif isvector(acc) && numel(acc) ~= nc
         acc = acc(:);
     end
     if size(acc, 2) ~= m && m == 0
@@ -141,7 +146,9 @@ if isfield(p, 'cpuCompare') && (isequaltrue(p.cpuCompare))
         end
         ac = fh(uc, extra);
         ac = double(ac);
-        if isvector(ac) && numel(ac) ~= nc
+        if isrow(ac) && numel(ac) == nc
+            ac = ac(:);
+        elseif isvector(ac) && numel(ac) ~= nc
             ac = ac(:);
         end
         if mc == 0
