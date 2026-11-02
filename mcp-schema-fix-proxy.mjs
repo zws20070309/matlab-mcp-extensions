@@ -56,14 +56,22 @@
  * 本代理覆盖不到 —— 遇到就再按同样方式定位与修复。
  *
  * ── 本代理做什么 ──────────────────────────────────────────────────────────────
- * 夹在 DSH 的 dsh-mcp-client 与 matlab exe 之间，**只**在 server→client 方向对
- * `tools/list` 的响应做一件事：给「声明为 object 但缺 properties 键」的 schema 补上
- * `properties: {}`。其余一切字节原样透传。
+ * 夹在 DSH 的 dsh-mcp-client 与 matlab exe 之间，做三件事：
+ *   1. server→client：给「声明为 object 但缺 properties 键」的 schema 补上
+ *      `properties: {}`；给少数内置工具的 description 追加超时语义说明。
+ *   2. 引擎占用守卫（2026-11-03）：client→server 的 tools/call 逐帧检查，
+ *      上一个调用在途超过 55s（客户端已超时、引擎仍在执行的被抛弃调用）时，
+ *      新调用不转发、立刻回秒达的诊断结果，终结「每次重试白付 60s」的
+ *      队头阻塞循环。MC_WEDGE_GUARD=0 可关闭；关闭后恢复零解析透传。
+ *   3. 慢调用台账 extensions/logs/proxy_calls.log：>10s 的调用与被拒绝的
+ *      调用各记一行，卡死事故不再需要从会话记录反推。
+ * 其余一切字节原样透传。
  *
  * 为什么这是安全的：
  *   * JSON Schema 里 `{"type":"object"}` 与 `{"type":"object","properties":{}}`
  *     **语义完全等价**（properties 为空表示没有声明任何具名属性）；
  *   * 只增不改：不删字段、不改类型、不动 required、不动任何工具的调用行为；
+ *   * 守卫只拒绝「转发出去也必然 60s 超时」的排队调用，且带秒回诊断；
  *   * 对不含该缺陷的服务器是**恒等变换**（本文件因此可以安全地长期挂着）。
  *
  * ── 用法 ─────────────────────────────────────────────────────────────────────
@@ -85,7 +93,9 @@
  */
 
 import { spawn } from 'node:child_process'
-import { pathToFileURL } from 'node:url'
+import { pathToFileURL, fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+import { mkdirSync, appendFileSync, statSync, renameSync } from 'node:fs'
 
 /** 日志前缀。DSH 的 mcp-client 收集子进程 stderr 作为诊断线索。 */
 const LOG_PREFIX = '[mcp-schema-fix]'
@@ -216,6 +226,187 @@ const DESCRIPTION_APPENDICES = {
   'list_jobs': ' NOTE: if this simple call times out, another call is occupying the shared engine; wait for it or check with session_info after a pause.',
 };
 const DESCRIPTION_MARK = 'TIMEOUT SEMANTICS';
+
+// ── 引擎占用守卫（2026-11-03，session-7fa54c30 事故后追加）──────────────────
+// 事故链（逐条实测取证，见仓库报告）：
+//   1. DSH 客户端对 tools/call 的超时是 ~60s（会话日志精确复现 60/61/62s）。
+//   2. 一个 >60s 的前台调用（实测：600-DPI exportgraphics）超时后被抛弃，
+//      但 MATLAB 引擎继续执行它；引擎串行，之后所有调用——包括「提交即返回」
+//      的 eval_async——都排队 60s 后超时，形成「MCP 完全无响应」的假象。
+//   3. 实测该状态持续 ~12 分钟（04:12:35→04:24），期间 agent 每次重试都白付
+//      60s，毫无诊断信息。
+// 本守卫做的事：上一个 MATLAB 调用在途超过 MC_WEDGE_AFTER_MS（默认 55s，
+// 已越过客户端超时点 = 卡死信号）时，新来的 tools/call 不再转发（转发也必
+// 超时），而是立刻回一个 isError 的工具结果，内容带占用时长、CPU 探测命令
+// 与恢复路径——把每轮 60s 的盲等变成一次即时诊断。转发出去的帧保持逐字节
+// 原样；解析失败的帧原样转发（不引入解析风险）。环境变量 MC_WEDGE_GUARD=0
+// 可整体关闭。
+const WEDGE_GUARD = process.env.MC_WEDGE_GUARD !== '0'
+const WEDGE_AFTER_MS_DEFAULT = 55_000
+const WEDGE_STALE_MS_DEFAULT = 1_800_000
+const SLOW_CALL_MS_DEFAULT = 10_000
+
+function envInt(name, dflt) {
+  const v = Number.parseInt(process.env[name] ?? '', 10)
+  return Number.isFinite(v) && v > 0 ? v : dflt
+}
+
+/** 代理自身的行为台账：慢调用、被守卫拒绝的调用（2 MiB 轮转）。 */
+const PROXY_LOG = join(dirname(fileURLToPath(import.meta.url)), 'extensions', 'logs', 'proxy_calls.log')
+
+function proxyLog(line) {
+  try {
+    mkdirSync(dirname(PROXY_LOG), { recursive: true })
+    let bytes = 0
+    try { bytes = statSync(PROXY_LOG).size } catch { /* 首次写入 */ }
+    if (bytes > 2_097_152) {
+      try {
+        renameSync(PROXY_LOG, `${PROXY_LOG}.1`)
+      } catch { /* 轮转失败不碍事 */ }
+    }
+    appendFileSync(PROXY_LOG, `${line}\n`, 'utf8')
+  } catch { /* 日志绝不破坏代理 */ }
+}
+
+/**
+ * 在途调用台账：驱动引擎占用守卫与慢调用记录。
+ *
+ * begin/end 由代理的 stdin/stdout 两个方向分别调用；end 返回本次调用的
+ * 耗时（找不到对应 begin 时返回 null，例如对端根本没发过的应答）。
+ * blocker() 返回「在途已超过 wedgeAfterMs」的调用——那正是客户端已经
+ * 超时放弃、引擎还在跑的被抛弃调用。超过 staleMs 的僵尸条目自动清除，
+ * 保证对端吞掉一条应答时守卫不会永久误判。
+ */
+export class CallTracker {
+  constructor({ wedgeAfterMs = envInt('MC_WEDGE_AFTER_MS', WEDGE_AFTER_MS_DEFAULT),
+                staleMs = envInt('MC_WEDGE_STALE_MS', WEDGE_STALE_MS_DEFAULT) } = {}) {
+    this.wedgeAfterMs = wedgeAfterMs
+    this.staleMs = staleMs
+    this.inFlight = new Map()
+  }
+
+  begin(id, name, now = Date.now()) {
+    this.inFlight.set(String(id), { name: String(name ?? '(unknown)'), startedAt: now })
+  }
+
+  end(id, now = Date.now()) {
+    const key = String(id)
+    const rec = this.inFlight.get(key)
+    if (!rec) return null
+    this.inFlight.delete(key)
+    return { name: rec.name, startedAt: rec.startedAt, durationMs: Math.max(0, now - rec.startedAt) }
+  }
+
+  /** 在途超过 wedgeAfterMs 的最老调用；僵尸条目（超过 staleMs）顺手清除。 */
+  blocker(now = Date.now()) {
+    let oldest = null
+    for (const [id, rec] of this.inFlight) {
+      const ageMs = now - rec.startedAt
+      if (ageMs > this.staleMs) {
+        this.inFlight.delete(id)
+        continue
+      }
+      if (ageMs > this.wedgeAfterMs && (!oldest || rec.startedAt < oldest.startedAt)) {
+        oldest = { id, name: rec.name, startedAt: rec.startedAt, ageMs }
+      }
+    }
+    return oldest
+  }
+
+  get size() {
+    return this.inFlight.size
+  }
+}
+
+/**
+ * 检查一条 client→server 帧：tools/call 且引擎已被占用时产出秒回的拒绝帧，
+ * 否则原帧转发并登记在途。解析失败/通知帧一律原样转发。
+ *
+ * @param {Buffer} frame - 含结尾换行的原始帧。
+ * @param {CallTracker} tracker
+ * @param {number} [now]
+ * @returns {{forward: true, tracked: {id: string, name: string}|null}
+ *           |{forward: false, response: Buffer, meta: {called: string, blockerName: string, blockerAgeMs: number, refusedCount: number}}}
+ */
+export function inspectClientFrame(frame, tracker, now = Date.now()) {
+  const text = frame.toString('utf8').trim()
+  if (text.startsWith('{')) {
+    let message
+    try {
+      message = JSON.parse(text)
+    } catch {
+      message = undefined
+    }
+    if (message !== undefined && message.method === 'tools/call'
+        && message.id !== undefined && message.id !== null
+        && message.params && typeof message.params === 'object') {
+      const blocker = tracker.blocker(now)
+      if (blocker) {
+        tracker.refusedCount = (tracker.refusedCount ?? 0) + 1
+        const response = Buffer.from(`${JSON.stringify({
+          jsonrpc: '2.0',
+          id: message.id,
+          result: {
+            content: [{ type: 'text', text: wedgeGuardText(message.params.name, blocker, tracker.refusedCount) }],
+            isError: true,
+          },
+        })}\n`, 'utf8')
+        return { forward: false, response, meta: { called: String(message.params.name ?? ''), blockerName: blocker.name, blockerAgeMs: blocker.ageMs, refusedCount: tracker.refusedCount } }
+      }
+      tracker.refusedCount = 0
+      const name = typeof message.params.name === 'string' ? message.params.name : '(unknown)'
+      tracker.begin(message.id, name, now)
+      return { forward: true, tracked: { id: String(message.id), name } }
+    }
+  }
+  return { forward: true, tracked: null }
+}
+
+/**
+ * 观察一条 server→client 帧：若它是对在途调用的应答，记下耗时。
+ * 只观察不改写——帧随后仍走 transformServerFrame，未修改的帧逐字节透传。
+ */
+export function observeServerFrame(frame, tracker, now = Date.now()) {
+  const text = frame.toString('utf8').trim()
+  if (!text.startsWith('{')) return null
+  let message
+  try {
+    message = JSON.parse(text)
+  } catch {
+    return null
+  }
+  if (message === null || typeof message !== 'object') return null
+  if (message.id === undefined || message.id === null) return null
+  if (typeof message.result !== 'object' && typeof message.error !== 'object') return null
+  const done = tracker.end(message.id, now)
+  if (done && done.durationMs > envInt('MC_SLOW_CALL_MS', SLOW_CALL_MS_DEFAULT)) {
+    proxyLog(`${new Date().toISOString()} SLOW ${done.durationMs}ms ${done.name}`)
+    return done
+  }
+  return done
+}
+
+function wedgeGuardText(calledName, blocker, refusedCount) {
+  const ageSec = Math.round(blocker.ageMs / 1000)
+  const startedAt = new Date(blocker.startedAt).toISOString().replace('T', ' ').slice(0, 19)
+  const head = refusedCount > 1
+    ? `[引擎占用守卫] 第 ${refusedCount} 次拒绝排队 - 引擎仍被占用`
+    : '[引擎占用守卫] 拒绝排队 - 这次调用转发了也只会在 60s 后超时'
+  return [
+    `${head}`,
+    `MATLAB 引擎已被上一次调用 <${blocker.name}> 占用 ${ageSec}s（${startedAt} 发出，客户端早已超时，引擎仍在执行）。`,
+    '引擎是串行的：现在转发 <' + String(calledName ?? '') + '> 只会排队到同一个引擎后面，60s 后同样超时',
+    '（实测 session-7fa54c30：3 连超时、空耗 7 分钟）。',
+    '处理：',
+    '1) 占用方若是导出/仿真等长任务：等它完成即自行恢复，无需任何操作；',
+    '2) 用 ops_bash 探测引擎是否还活着：',
+    '   powershell -NoProfile -Command "Get-Process MATLAB | Select-Object Id,CPU,WS"',
+    '   CPU 在涨 = 在干活（选 1 等待）；CPU 平 = 已僵死（选 3）；',
+    '3) 已僵死：重启本 MCP 服务器（DSH 的 MCP 设置），或结束对应 MATLAB 进程由 exe 重建。',
+    '根治：>45s 的工作改走 eval_async + job_status（提交立即返回，不占前台引擎）。',
+    '本守卫可用环境变量 MC_WEDGE_GUARD=0 关闭。',
+  ].join('\n')
+}
 
 function appendBuiltinDescriptions(tools, changed, warnings) {
   if (!Array.isArray(tools)) return
@@ -566,6 +757,10 @@ function runProxy(command, args) {
   })
 
   const framer = new LineFramer()
+  /** client→server 方向的分帧器：守卫需要逐帧看 tools/call。 */
+  const inFramer = new LineFramer()
+  /** 引擎占用守卫的在途台账（工具调用 id → 名称/起始时间）。 */
+  const tracker = new CallTracker()
   let exiting = false
   /** 收尾只做一次（close 与兜底定时器可能都触发）。 */
   let finalized = false
@@ -615,7 +810,9 @@ function runProxy(command, args) {
   child.stdout.on('data', (chunk) => {
     const frames = framer.push(chunk)
     if (frames.length === 0) return
-    // 先把本批全部变换（纯函数，不会丢帧），再交给队列按序送达。
+    // 应答观察（慢调用台账）在前，工具列表修复在后；两者都只产出字节，
+    // 送达交给队列。
+    for (const frame of frames) observeServerFrame(frame, tracker)
     pump.push(frames.map((frame) => transformServerFrame(frame)))
     gate()
   })
@@ -629,12 +826,31 @@ function runProxy(command, args) {
     }
   })
 
-  // client → server：零解析，字节原样转发（这一侧不需要修任何东西）。
+  // client → server：逐帧过守卫。被拒绝的帧不转发，改为立刻向客户端回一个
+  // isError 的工具结果（经同一 OutputPump 写出，与 server→client 的写串行）；
+  // 转发的帧保持逐字节原样。解析失败的帧原样转发。
   // 背压：子进程 stdin 缓冲满时暂停父进程 stdin，drain 后恢复。
   process.stdin.on('data', (chunk) => {
-    if (!child.stdin.write(chunk)) {
-      process.stdin.pause()
-      child.stdin.once('drain', () => process.stdin.resume())
+    const frames = inFramer.push(chunk)
+    if (frames.length > 0) {
+      const forwarded = []
+      for (const frame of frames) {
+        const verdict = WEDGE_GUARD ? inspectClientFrame(frame, tracker) : { forward: true, tracked: null }
+        if (verdict.forward) {
+          forwarded.push(frame)
+          if (verdict.tracked) proxyLog(`${new Date().toISOString()} CALL ${verdict.tracked.name} id=${verdict.tracked.id}`)
+        } else {
+          proxyLog(`${new Date().toISOString()} REFUSED ${verdict.meta.called} blockedBy=${verdict.meta.blockerName} ageMs=${verdict.meta.blockerAgeMs} refusedCount=${verdict.meta.refusedCount}`)
+          pump.push([verdict.response])
+        }
+      }
+      if (forwarded.length > 0) {
+        const chunkOut = Buffer.concat(forwarded)
+        if (!child.stdin.write(chunkOut)) {
+          process.stdin.pause()
+          child.stdin.once('drain', () => process.stdin.resume())
+        }
+      }
     }
   })
   process.stdin.on('end', () => child.stdin.end())

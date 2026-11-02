@@ -98,7 +98,34 @@ inputSchema 逐字节相同的工具：36 / 37
 ```console
 node proxy.test.mjs                  # 纯逻辑单元测试（26 项）
 node proxy-backpressure.test.mjs     # 背压/丢帧/退出竞态回归（17 项）
+node proxy-wedgeguard.test.mjs       # 引擎占用守卫：单元 + 真实代理进程集成（15 项）
 ```
+
+## 第三层功能：引擎占用守卫（2026-11-03 追加）
+
+**事故**（session-7fa54c30，逐条实测取证）：一个 >60s 的前台调用（600-DPI
+exportgraphics）被 DSH 客户端 60s 超时抛弃后，MATLAB 引擎继续执行它；引擎
+串行，之后所有调用——包括「提交即返回」的 eval_async——排队 60s 后同样超时，
+表现为「MATLAB MCP 完全无响应」，实测持续 ~12 分钟，agent 每次重试都白付 60s。
+
+**守卫**：client→server 的 `tools/call` 逐帧检查。上一个调用在途超过
+55s（`MC_WEDGE_AFTER_MS`，默认越过客户端 60s 超时点 = 卡死信号）时，新调用
+**不再转发**（转发也必超时），立刻回一个 `isError` 的工具结果：占用时长、
+起始时间、CPU 探测命令（区分「在干活要等」与「已僵死要重启」）、恢复路径。
+被拒绝的调用不进在途台账；占用方完成（应答到达）后自动放行后续调用。
+
+**台账** `extensions/logs/proxy_calls.log`（2 MiB 轮转）：每个转发的
+tools/call 一行 `CALL`；>10s（`MC_SLOW_CALL_MS`）的完成调用一行 `SLOW`；
+被守卫拒绝的一行 `REFUSED`。卡死事故不再需要从会话记录反推。
+
+**开关与阈值**（环境变量）：`MC_WEDGE_GUARD=0` 整体关闭（恢复零解析透传）；
+`MC_WEDGE_AFTER_MS` / `MC_WEDGE_STALE_MS` / `MC_SLOW_CALL_MS` 调阈值。
+超过 `MC_WEDGE_STALE_MS`（默认 30 分钟）无应答的条目按僵尸自动清除，守卫
+不会因为对端吞掉一条应答而永久误判。
+
+**安全性**：转发的帧保持逐字节原样；解析失败的帧原样转发；`ping` 与通知帧
+不追踪不拒绝。守卫只拒绝「转发出去也必然 60s 超时」的排队调用——顺序调用
+流（上一条返回才发下一条）永远不会触发。
 
 ## 回滚
 
