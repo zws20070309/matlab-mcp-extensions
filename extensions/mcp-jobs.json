@@ -377,7 +377,7 @@
           },
           "specJson": {
             "type": "string",
-            "description": "{\"n\":...,\"params\":{...},\"seed\":...}"
+            "description": "{\"totalN\": samples (alias \"n\"), \"chunk\": batch size, \"seed\": int, \"precision\": \"single|double\", \"dim\": columns, \"params\": {...}}"
           }
         },
         "required": [

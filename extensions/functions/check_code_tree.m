@@ -6,6 +6,9 @@ function check_code_tree(rootPath, pattern, minSeverity)
 %             messages; everything is still counted. '' = 'info'.
 %   WHY: check_matlab_code covers one file per call, so a project with dozens of
 %   sources costs one round trip each. This walks the tree and aggregates.
+%   Severity comes from checkcode(...,'-severity') (0=info, 1=warning, 3=error),
+%   so the error count is MATLAB's own grading - not a keyword guess. A tree with
+%   a real parse error therefore reports error>0 and a NOT-clean VERDICT.
 if nargin < 3, minSeverity = ''; end
 if nargin < 2, pattern = ''; end
 mcp_tool_log('check_code_tree', mcp_str(rootPath));
@@ -37,23 +40,26 @@ for k = 1:numel(files)
     f = files{k};
     nfile = nfile + 1;
     try
-        msg = checkcode(f);
+        msg = checkcode(f, '-severity');
     catch e
-        fprintf('CHECKCODE_FAIL %s : %s\n', f, e.identifier);
-        continue
+        % '-severity' is not available on every release; fall back to the plain
+        % form so an old MATLAB still lints, using keyword grading for severity.
+        try
+            msg = checkcode(f);
+        catch e2
+            fprintf('CHECKCODE_FAIL %s : %s\n', f, e2.identifier);
+            continue
+        end
+        fprintf('NOTE %s : -severity unsupported (%s); severity graded by keyword, not by MATLAB\n', f, e.identifier);
     end
     if isempty(msg)
         continue
     end
     nfault = nfault + 1;
     cnt = struct('error', 0, 'warning', 0, 'info', 0);
-    % checkcode in struct form exposes only message, fix, line and column - there
-    % is no severity field (verified with fieldnames). Severity below is therefore
-    % classified from the message text by keyword; that heuristic is stated here
-    % rather than presented as the grading MATLAB itself applies.
     for j = 1:numel(msg)
         d = strtrim(replace(char(string(msg(j).message)), newline, ' '));
-        s = classify(d);
+        s = sev_of(msg(j));
         tot.(s) = tot.(s) + 1;
         cnt.(s) = cnt.(s) + 1;
         if rank.(s) >= rank.(sev) && shown < 200
@@ -78,8 +84,32 @@ if shown >= 200
 end
 end
 
-function s = classify(msgText)
-%CLASSIFY Keyword severity, because checkcode exposes no severity in struct form.
+function s = sev_of(m)
+%SEV_OF Severity exactly as MATLAB grades it, via checkcode(...,'-severity').
+%   Measured on R2025a: the numeric scale is 0=info, 1=warning, 3=error (a real
+%   parse error scores 3). An earlier version classified by message keywords,
+%   which reported the missing-END error ENDCT2 as "warning" - a tree that
+%   cannot even run came back VERDICT "no errors". The keyword route is kept
+%   only as a fallback for a release that lacks the '-severity' form.
+v = NaN;
+if isfield(m, 'severity')
+    v = double(m.severity);
+end
+if isfinite(v)
+    if v >= 3
+        s = 'error';
+    elseif v >= 1
+        s = 'warning';
+    else
+        s = 'info';
+    end
+    return
+end
+s = classify_kw(char(string(m.message)));
+end
+
+function s = classify_kw(msgText)
+%CLASSIFY_KW Fallback keyword grading, used only when '-severity' is absent.
 t = lower(msgText);
 errKeys = {'parse error', 'invalid syntax', 'syntax error', 'error', 'unrecognized', ...
            'unable', 'not supported', '解析错误', '无效', '语法', '错误', '无法'};

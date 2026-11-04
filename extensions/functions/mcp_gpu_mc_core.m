@@ -18,6 +18,12 @@ function r = mcp_gpu_mc_core(p)
 %   5e7 samples in 0.04 s GPU vs 0.74 s CPU (19x).
 dflt = struct('totalN', 1e7, 'chunk', 1e6, 'seed', [], 'precision', 'single', ...
     'dim', 1, 'params', [], 'cpuCompare', false);
+% "n" is the alias the tool schema documents ({"n":...}) for totalN; honour it
+% BEFORE the defaults fill in, or a spec {"n":1000} would silently run the 1e7
+% default instead (measured live 2026-11-04).
+if ~isfield(p, 'totalN') && isfield(p, 'n')
+    p.totalN = p.n;
+end
 f = fieldnames(dflt);
 for k = 1:numel(f)
     if ~isfield(p, f{k})

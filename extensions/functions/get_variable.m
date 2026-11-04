@@ -114,7 +114,14 @@ try
         p.variables = string(v.Properties.VariableNames);
         p.rows = height(v);
         h = min(200, height(v));
-        p.data = table2array(v(1:h, :));
+        % table2array rejects mixed-type tables (measured: double + cell ->
+        % "无法串联表变量... double 和 cell"), so serialise column by column and
+        % let each column take the JSON form its own class supports.
+        cols = cell(1, width(v));
+        for w = 1:width(v)
+            cols{w} = col_json(v{1:h, w});
+        end
+        p.data = cols;
         if height(v) > h
             p.note = 'first 200 rows only; use mode=csv for the whole table';
         end
@@ -123,7 +130,14 @@ try
         p.rows = height(v);
         h = min(200, height(v));
         p.time = seconds(v.Time(1:h));
-        p.data = table2array(v(1:h, :));
+        cols = cell(1, width(v));
+        for w = 1:width(v)
+            cols{w} = col_json(v{1:h, w});
+        end
+        p.data = cols;
+        if height(v) > h
+            p.note = 'first 200 rows only; use mode=csv for the whole timetable';
+        end
     elseif isa(v, 'timeseries')
         p.kind = 'timeseries';
         n = min(20000, size(v.Data, 1));
@@ -207,6 +221,28 @@ catch e
         'kind', 'unserializable', ...
         'note', ['jsonencode failed: ' e.identifier ': ' e.message]);
     js = jsonencode(p);
+end
+end
+
+function out = col_json(x)
+%COL_JSON One table column in a form jsonencode accepts.
+%   jsonencode handles numeric/logical/char/string/cell natively but aborts on
+%   complex values and converts nothing for datetime/categorical/columns of
+%   objects, so those are mapped to text (ISO timestamps, category names)
+%   instead of failing the whole json mode. The complex split requires
+%   isnumeric: isreal() only reports the imaginary-storage flag and is TRUE for
+%   cell arrays, so real({'a'}) would otherwise be reached and throw.
+if isnumeric(x) && ~isreal(x)
+    out = struct('real', real(x), 'imag', imag(x));
+elseif isa(x, 'datetime') || isa(x, 'duration') || iscategorical(x) ...
+        || iscell(x) || istable(x) || isstruct(x) || isobject(x)
+    try
+        out = string(x);
+    catch
+        out = repmat("<unconvertible>", size(x));
+    end
+else
+    out = x; % numeric, logical, char, string: jsonencode's native forms
 end
 end
 

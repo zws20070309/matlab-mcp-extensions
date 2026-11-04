@@ -9,6 +9,10 @@ function file_op(action, target, optsJson)
 %              "get":"counts.test_functions", "text":"literal", "regex":false,
 %              "glob":"*.m", "find":"old", "replace":"new", "expect":1,
 %              "noBackup":false, "allowQuote":false}
+%   startLine (read): window starts at the beginning of line N, counting from 1;
+%   maxLines then keeps the FIRST lines of that window. Without startLine the
+%   window is the file tail and maxLines keeps the LAST lines. cursor (bytes)
+%   wins when both are given.
 %
 %   WHY: the extension layer had no file primitives at all, so every artifact a
 %   simulation produced (HDF5 manifests, resolved configs, reference tables, run
@@ -51,8 +55,18 @@ switch action
         d = dir(target);
         maxB = 65536;
         if isfield(o, 'maxBytes'), maxB = max(1, round(mcp_num(o.maxBytes, 65536))); end
+        % startLine makes read a FORWARD read: the window begins at the start of
+        % line N (1-based) instead of the tail. Documented from the start but
+        % never actually implemented - a call passing it got the tail silently.
+        % cursor (a raw byte offset) wins when both are given.
+        sl = 0;
+        if isfield(o, 'startLine')
+            sl = max(1, round(mcp_num(o.startLine, 1)));
+        end
         if isfield(o, 'cursor')
             cur = max(0, round(mcp_num(o.cursor, 0)));
+        elseif sl > 1
+            cur = line_offset(target, sl);
         else
             % No cursor means "show me the end of this file" - the question that
             % is actually being asked when someone reads a run log. One handle,
@@ -69,9 +83,11 @@ switch action
         raw = fread(fid, maxB, 'uint8');
         got = numel(raw);
         txt = mcp_decode(raw, enc);
-        if cur > 0
+        if cur > 0 && sl == 0
             % drop a partial leading line: a window that starts mid-UTF-8 or
-            % mid-line produces garbage that reads like corruption
+            % mid-line produces garbage that reads like corruption. A startLine
+            % seek lands ON a line boundary, so dropping "up to the first
+            % newline" there would silently swallow the very line asked for.
             q = strfind(txt, newline);
             if ~isempty(q) && q(1) < 200
                 txt = txt(q(1) + 1:end);
@@ -91,9 +107,16 @@ switch action
             ml = max(1, round(mcp_num(o.maxLines, 200)));
             lines = regexp(txt, '\r?\n', 'split');
             if numel(lines) > ml
-                lines = lines(end-min(ml, numel(lines))+1:end);
+                if sl > 1
+                    % a forward read wants the FIRST lines of its window; keep-last
+                    % would return the opposite end of the file from startLine
+                    lines = lines(1:ml);
+                    pnote = [pnote ' | kept the first ' num2str(ml) ' line(s) from startLine'];
+                else
+                    lines = lines(end-min(ml, numel(lines))+1:end);
+                    pnote = [pnote ' | capped to the last ' num2str(ml) ' line(s)'];
+                end
                 txt = strjoin(lines, newline);
-                pnote = [pnote ' | capped to the last ' num2str(ml) ' line(s)'];
             end
         end
         fprintf('file: %s  total=%d bytes  returned=%d bytes  window=[%d..%d]\n', ...
@@ -464,6 +487,43 @@ while true
     n = n + nnz(raw == 10);
 end
 clear c
+end
+
+function off = line_offset(p, wantLine)
+% Byte offset (0-based, for fseek bof) of the start of line wantLine (1-based),
+% scanned in windows so a large log is never loaded whole. Errors when the file
+% has fewer lines instead of silently reading from byte 0 again. LF counting is
+% encoding-agnostic for UTF-8/ASCII (10 never appears inside a multi-byte
+% UTF-8 sequence), so no decoding is needed here. No empty return exists: a
+% short file hits the error below, so the "possibly unused" initializer is dead.
+fid = fopen(p, 'rb');
+if fid < 0
+    error('file_op:openFail', '[file_op:openFail] cannot open %s', p);
+end
+c = onCleanup(@() quietClose(fid));
+base = 0;
+seen = 0;
+while true
+    raw = fread(fid, 4194304, 'uint8');
+    if isempty(raw)
+        break
+    end
+    hits = find(raw == 10);
+    for q = 1:numel(hits)
+        seen = seen + 1;
+        if seen == wantLine - 1
+            % fseek's bof offset counts bytes to SKIP (0-based): hits(q) is the
+            % 1-based index of the newline, so hits(q) bytes precede it and the
+            % line asked for starts at skip-count base + hits(q).
+            off = base + hits(q);
+            return
+        end
+    end
+    base = base + numel(raw);
+end
+clear c
+error('file_op:badStartLine', ...
+    '[file_op:badStartLine] startLine=%d but %s has only %d line(s)', wantLine, p, line_count(p));
 end
 
 function names = fieldnames_of(js)

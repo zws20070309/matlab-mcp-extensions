@@ -60,7 +60,11 @@ if isempty(steps)
 end
 
 logDir = fullfile(mcp_ext_root(), 'steps_logs');
-if isfield(o, 'logDir'), logDir = mcp_str(o.logDir); end
+if isfield(o, 'logDir') && ~isempty(strtrim(mcp_str(o.logDir)))
+    % an explicitly EMPTY logDir means "default", not "the directory with no
+    % name" - mkdir('') used to warn and the run log silently vanished
+    logDir = mcp_str(o.logDir);
+end
 if ~exist(logDir, 'dir'), mkdir(logDir); end
 runId = sprintf('s%s', char(datetime('now', 'TimeZone', 'UTC', 'Format', 'yyyyMMdd''T''HHmmss''Z''')));
 logPath = fullfile(logDir, ['steps_' runId '.log']);
