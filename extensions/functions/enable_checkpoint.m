@@ -10,14 +10,21 @@ function enable_checkpoint(periodSeconds)
 %   MATLAB process, so re-run enable_checkpoint after any restart.
 
 if nargin < 1, periodSeconds = 60; end
-% The MCP schema delivers periodSeconds as a STRING. The previous guard rejected
+% The MCP schema delivers periodSeconds as a STRING (0.16.0 rejects a JSON
+% number against a "string" schema, and it rejects oneOf unions too - verified
+% 2026-11-04: "property v must have a 'type' field"). The previous guard rejected
 % anything non-numeric by silently falling back to 60 s, so "0" - the documented
 % way to STOP the timer - quietly re-armed a 60 s checkpoint instead
 % (found by the v8 acceptance sweep: enable_checkpoint('0') printed
 % "checkpoint enabled: every 60 s"). Normalise through mcp_num instead.
-v = mcp_num(periodSeconds, 60);
+% An UNPARSABLE value is still refused loudly: falling back to 60 s made
+% enable_checkpoint('abc') look like success while arming a cadence the caller
+% never asked for (reproduced 2026-11-04 on 0.16.0).
+v = mcp_num(periodSeconds, NaN);
 if ~isfinite(v)
-    v = 60;
+    error('enable_checkpoint:badPeriod', ...
+        '[enable_checkpoint:badPeriod] periodSeconds must be a number of seconds (0 removes the timer), got: %s', ...
+        mcp_str(periodSeconds));
 end
 period = max(0, v);
 mcp_tool_log('enable_checkpoint', sprintf('periodSeconds=%g', period));

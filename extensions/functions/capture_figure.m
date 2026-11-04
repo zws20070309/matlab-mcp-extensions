@@ -8,7 +8,7 @@ if nargin < 1, target = 'current'; end
 if nargin < 2, outPath = ''; end
 figs = findall(0, 'Type', 'figure');
 if isempty(figs)
-    error('capture_figure:noFigures', '[capture_figure:noFigures] No open figures to capture');
+    mcp_no_figures_error('capture_figure');
 end
 target = mcp_str(target); % MCP arg normalization, see mcp_str
 if isempty(target) || strcmpi(target, 'current')

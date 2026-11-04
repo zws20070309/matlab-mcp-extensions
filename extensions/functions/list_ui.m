@@ -16,7 +16,7 @@ verbose = parseVerbose(verbose);
 
 figs = findall(0, 'Type', 'figure');
 if isempty(figs)
-    error('list_ui:noFigures', '[list_ui:noFigures] No open figures to inspect');
+    mcp_no_figures_error('list_ui');
 end
 if isempty(target) || strcmpi(target, 'current')
     % Documented contract: "empty lists all". An empty target first prints an

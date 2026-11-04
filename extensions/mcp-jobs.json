@@ -163,13 +163,13 @@
     {
       "name": "enable_checkpoint",
       "title": "Turn on.matlab checkpoints",
-      "description": "Enable periodic workspace snapshots and report the interval.",
+      "description": "Enable periodic workspace snapshots and report the interval. periodSeconds accepts a number or a numeric string; 0 stops and removes the timer.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "periodSeconds": {
-            "type": "number",
-            "description": "Snapshot interval"
+            "type": "string",
+            "description": "Snapshot interval in seconds (numeric text, e.g. \"60\"; \"0\" stops the timer)"
           }
         },
         "required": [

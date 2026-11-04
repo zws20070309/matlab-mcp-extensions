@@ -29,7 +29,7 @@ end
 
 figs = findall(0, 'Type', 'figure');
 if isempty(figs)
-    error('capture_app:noFigures', '[capture_app:noFigures] No open figures to capture');
+    mcp_no_figures_error('capture_app');
 end
 if isempty(target) || strcmpi(target, 'current')
     try
