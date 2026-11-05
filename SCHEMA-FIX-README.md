@@ -2,7 +2,7 @@
 
 ## 这是什么
 
-一个 stdio JSON-RPC 代理，夹在 **DSH 的 `dsh-mcp-client`** 与 **`matlab-mcp-server-windows-x64.exe`** 之间，
+一个 stdio JSON-RPC 代理，夹在 **MCP 客户端的 stdio 子进程调用** 与 **`matlab-mcp-server-windows-x64.exe`** 之间，
 在转发 `tools/list` 响应时，给「声明为 object 但缺 `properties` 键」的 schema 补上 `properties: {}`。
 
 ## 为什么需要它
@@ -31,18 +31,18 @@ On schema['properties']: None
 2. **provider 侧的 schema 校验拒绝「缺 properties 键」的 object schema**。错误原文点名
    `On schema['properties']: None`，即 provider 把「缺键」看成 `None`。
 
-   > ⚠️ **诚实标注**：我**没能定位**「缺键」究竟在 DSH 的哪一段代码里变成 provider 眼中的
-   > `None`。我曾归因于 Anthropic SDK 的 `mcpTool` helper
+   > ⚠️ **诚实标注**：我**没能定位**「缺键」究竟在客户端的哪一段代码里变成 provider 眼中的
+   > `None`。我曾归因于某家 SDK 的 `mcpTool` helper
    > （`properties: tool.inputSchema.properties ?? null`），但**那条归因是错的**：
-   > - 它属于 Anthropic provider 路径，而报错会话用的是 GLM（`sn-glm-5-3`）；
+   > - 它属于某一家 provider 的转换路径，而报错会话用的是另一家 provider；
    > - 逐字复刻 `convertTools` 验证：`schema.properties ?? {}` 在 `undefined` 时给 `{}`，不可能产出 `null`；
-   > - 也追了 OpenAI/GLM 风格的 `toFunctionTools → getJsonSchemaToolParameters(tool, true)
+   > - 也追了另一家 provider 风格的 `toFunctionTools → getJsonSchemaToolParameters(tool, true)
    >   → makeStrictJsonSchema → makeJsonSchemaNodeStrict`：对「缺 properties」既不抛错也不写 null；
-   > - 报错文本来自 provider 的 AJV，**不在 app.asar 内**（搜 `"None is not of type"` 0 命中）；
+   > - 报错文本来自 provider 的 AJV，**不在客户端安装包内**（搜 `"None is not of type"` 0 命中）；
    > - 我扫了 6 个会话的 `request/header`：**`parameters.properties === null` 出现 0 次**，
    >   只出现「缺 properties 键」。
    >
-   > ⇒ null 更可能产生于**发给 provider 之后**的链路（或 GLM 网关侧归一化），不在 DSH 落盘的那一层。
+   > ⇒ null 更可能产生于**发给 provider 之后**的链路（或网关侧归一化），不在客户端落盘的那一层。
    > **这不影响修复有效性**（我修的是已实测确认的上游异常），但若下游还有第二处会产 null 的地方，
    > 本代理覆盖不到。
 
@@ -62,7 +62,7 @@ On schema['properties']: None
 ## 怎么用
 
 ```console
-# 以代理方式运行（DSH 配置里就是这么用的）
+# 以代理方式运行（客户端配置里就是这么用的）
 node mcp-schema-fix-proxy.mjs -- <真实服务器命令> [参数...]
 
 # 真实链路自检：启动服务器、握手、报告修复前后的缺陷数
@@ -72,8 +72,11 @@ node mcp-schema-fix-proxy.mjs --probe -- <真实服务器命令> [参数...]
 node mcp-schema-fix-proxy.mjs --help
 ```
 
-在 `~/.dsh/profiles/desktop/cordis.patch.yml` 里，`mcp-matlab` 那条的 `command` 是
-`node.exe` 的绝对路径，`args` 是 `[代理脚本, '--', 原exe, ...原参数]`。
+在客户端的 MCP 服务器配置里，把 `command` 指向 `node.exe` 的绝对路径，`args` 写成
+`[代理脚本, '--', 原exe, ...原参数]`。仓库根目录的 README 给出了完整 JSON 示例。
+
+**推荐再配一个环境变量**：`MC_WEDGE_AFTER_MS` = 客户端单次调用超时略低的值。该阈值表示
+"已越过客户端超时点，可判定为卡死"。客户端 60 s 超时用默认 55 s；120 s 超时用 110 s。
 
 ## 安全性
 
@@ -103,8 +106,8 @@ node proxy-wedgeguard.test.mjs       # 引擎占用守卫：单元 + 真实代�
 
 ## 第三层功能：引擎占用守卫（2026-11-03 追加）
 
-**事故**（session-7fa54c30，逐条实测取证）：一个 >60s 的前台调用（600-DPI
-exportgraphics）被 DSH 客户端 60s 超时抛弃后，MATLAB 引擎继续执行它；引擎
+**事故**（逐条实测取证）：一个 >60s 的前台调用（600-DPI
+exportgraphics）被客户端约 60s 超时抛弃后，MATLAB 引擎继续执行它；引擎
 串行，之后所有调用——包括「提交即返回」的 eval_async——排队 60s 后同样超时，
 表现为「MATLAB MCP 完全无响应」，实测持续 ~12 分钟，agent 每次重试都白付 60s。
 
@@ -138,13 +141,13 @@ args: [ "--matlab-root=<MATLABROOT>", "--initialize-matlab-on-startup=false",
         "--extension-file=...\mcp-qa-tools.json" ]
 ```
 
-备份位置：`~/.dsh/profiles/desktop/cordis.patch.yml.bak-20261010221550-pre-schema-proxy`
+回滚方式：把客户端配置里该 MCP 服务器的 `command` / `args` 改回直连 exe 的形式（改动前请自行备份该配置文件）。
 
 ## 已修掉的自身缺陷（开发过程中自查发现，均有回归测试）
 
 | 级别 | 缺陷 | 修法 |
 |---|---|---|
-| P0 | **背压丢帧**：`framer.push()` 已把帧取出，遇背压 `break` 掉的帧永久丢失（MCP 一次发多帧时 DSH 侧握手卡死） | 新增 `OutputPump`：帧先入队，按序送达，一帧不丢 |
+| P0 | **背压丢帧**：`framer.push()` 已把帧取出，遇背压 `break` 掉的帧永久丢失（MCP 一次发多帧时客户端侧握手卡死） | 新增 `OutputPump`：帧先入队，按序送达，一帧不丢 |
 | P1 | **退出竞态·第一版修错**：只设 `process.exitCode` 不调 `process.exit()`，而 MCP 会话 stdin 长开 ⇒ 事件循环不空 ⇒ **代理永不退出** | `finalize()`：`stdin.destroy()` → `stdout.end(cb)` → cb 里 `process.exit()`；`close` 触发收尾，`exit` 只记码 + 2 秒兜底 |
 | P1 | **退出竞态·原版**：`exit` 里立刻 `process.exit()` 会截断 `child.stdout` 尚未派发的缓冲 | 收尾挂 `child.on('close')`（保证 stdio 全关） |
 | P1 | **`once('drain')` 卡死**：drain 后再次背压时已无监听器 ⇒ 队列无人续写 | 改**持久** drain 监听 + 幂等 `gate()` |

@@ -1,11 +1,11 @@
 function mcp_budget_guard(expectedSec, label)
 %MCP_BUDGET_GUARD Fail fast when a call would exceed the MCP client timeout window.
-%   The DSH MCP client times a tool call out at ~60 s while the MATLAB engine
+%   The MCP client times a tool call out at ~60 s while the MATLAB engine
 %   keeps executing the abandoned call: the engine is then busy for the rest
 %   of the task while every other session's calls (including trivial
 %   session_info pings) queue behind it and die with "Request timed out".
-%   Field evidence: session-7ac4a2ae (2026-10-10) lost 23 calls across 3
-%   agents to this head-of-line blocking after one >60 s test suite.
+%   Field evidence: 2026-10-10, 23 calls lost across 3 agents to this
+%   head-of-line blocking after one >60 s test suite.
 %
 %   Call this at the top of a long-running script executed through
 %   evaluate_matlab_code / run_matlab_file:

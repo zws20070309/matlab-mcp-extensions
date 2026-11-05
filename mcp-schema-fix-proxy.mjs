@@ -28,35 +28,35 @@
  *
  * ── 诚实标注：哪一条是实测事实，哪一条我没能定位 ──────────────────────────────
  * 已实测为真（可直接复现）：
- *   * 该工具的 inputSchema **确实缺 properties 键** —— 直连 exe 与 DSH 落盘的
+ *   * 该工具的 inputSchema **确实缺 properties 键** —— 直连 exe 与客户端落盘的
  *     request/header 都能看到（我扫了 6 个会话日志：报错会话里 `缺 properties 键 = 1 个`，
  *     就是它；其余会话 0 个）。
  *   * 该缺陷会被 provider 的 schema 校验拒绝。provider 的错误原文点名
  *     `On schema['properties']: None`。
  *   * 补齐 `properties: {}` 之后，同一份 schema 不再触发该错误。
  *
- * **未能定位（不要当作结论引用）**：究竟是 DSH 的**哪一段代码**把「缺键」变成
- * provider 眼中的 `None`。我曾归因于 Anthropic SDK `mcpTool` helper 里的
+ * **未能定位（不要当作结论引用）**：究竟是客户端的**哪一段代码**把「缺键」变成
+ * provider 眼中的 `None`。我曾归因于某家 SDK 的 `mcpTool` helper 里的
  * `properties: tool.inputSchema.properties ?? null`，但**这条归因是错的**：
- *   * 它属于 Anthropic provider 路径，而报错会话用的是 GLM（`sn-glm-5-3`）；
+ *   * 它属于某一家 provider 的转换路径，而报错会话用的是另一家 provider；
  *   * 我逐字复刻 `convertTools` 验证过：`schema.properties ?? {}` 在 `undefined` 时给的是
  *     `{}`，**不可能产出 null**；`strict === true` 的合并支路（`{...parameters, ...legacy}`）
  *     里 legacy 在后，也只会覆盖成 `{}`。
- *   * 我也追了 GLM/OpenAI 风格的 `toFunctionTools` → `getJsonSchemaToolParameters(tool, true)`
+ *   * 我也追了另一家 provider 风格的 `toFunctionTools` → `getJsonSchemaToolParameters(tool, true)`
  *     → `makeStrictJsonSchema` → `makeJsonSchemaNodeStrict`：它对「缺 properties」既不抛错
  *     也不写 null（只在 `properties !== undefined` 时才做类型校验）。
- *   * 该报错文本来自 provider 的 AJV，**不在 app.asar 内**（搜 `"None is not of type"`
+ *   * 该报错文本来自 provider 的 AJV，**不在客户端安装包内**（搜 `"None is not of type"`
  *     与 `"Failed validating"` 均 0 命中）。
  *   * 我扫过 6 个会话的 request/header：**`parameters.properties === null` 出现 0 次**，
  *     只出现「缺 properties 键」。⇒ null 更可能产生于**发给 provider 之后**的链路
- *     （或 GLM 网关侧的归一化），不在 DSH 落盘的这一层。
+ *     （或网关侧的归一化），不在客户端落盘的这一层。
  *
  * **这对修复意味着什么**：本代理修的是**已实测确认的上游异常**（缺 properties 键），
  * 且修复后 provider 不再报错。但如果链路下游还有**第二处**会把 schema 变成 null 的地方，
  * 本代理覆盖不到 —— 遇到就再按同样方式定位与修复。
  *
  * ── 本代理做什么 ──────────────────────────────────────────────────────────────
- * 夹在 DSH 的 dsh-mcp-client 与 matlab exe 之间，做三件事：
+ * 夹在 MCP 客户端的 stdio 子进程调用与 matlab exe 之间，做三件事：
  *   1. server→client：给「声明为 object 但缺 properties 键」的 schema 补上
  *      `properties: {}`；给少数内置工具的 description 追加超时语义说明。
  *   2. 引擎占用守卫（2026-11-03）：client→server 的 tools/call 逐帧检查，
@@ -88,7 +88,7 @@
  *   * client→server 方向**零解析**，字节原样转发（不引入任何解析风险）；
  *   * server→client 方向：只有能解析成 JSON 且是 tools/list 成功响应、且确实修到了
  *     东西的那一行才重新序列化；其余行按原始字节写出（含 \r\n 与空行）；
- *   * 子进程 stderr 原样透传到本进程 stderr（DSH 会收进 stderrLines 供排查）；
+ *   * 子进程 stderr 原样透传到本进程 stderr（客户端会收进自己的诊断日志）；
  *   * 退出码/信号传播：子进程怎么退，本代理怎么退；stdin 关闭则关掉子进程 stdin。
  */
 
@@ -97,7 +97,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { mkdirSync, appendFileSync, statSync, renameSync } from 'node:fs'
 
-/** 日志前缀。DSH 的 mcp-client 收集子进程 stderr 作为诊断线索。 */
+/** 日志前缀。客户端收集子进程 stderr 作为诊断线索。 */
 const LOG_PREFIX = '[mcp-schema-fix]'
 
 /**
@@ -229,7 +229,7 @@ const DESCRIPTION_MARK = 'TIMEOUT SEMANTICS';
 
 // ── 引擎占用守卫（2026-11-03，session-7fa54c30 事故后追加）──────────────────
 // 事故链（逐条实测取证，见仓库报告）：
-//   1. DSH 客户端对 tools/call 的超时是 ~60s（会话日志精确复现 60/61/62s）。
+//   1. MCP 客户端对 tools/call 的超时通常是 ~60s 起（会话日志精确复现 60/61/62s）。
 //   2. 一个 >60s 的前台调用（实测：600-DPI exportgraphics）超时后被抛弃，
 //      但 MATLAB 引擎继续执行它；引擎串行，之后所有调用——包括「提交即返回」
 //      的 eval_async——都排队 60s 后超时，形成「MCP 完全无响应」的假象。
@@ -399,10 +399,10 @@ function wedgeGuardText(calledName, blocker, refusedCount) {
     '（实测 session-7fa54c30：3 连超时、空耗 7 分钟）。',
     '处理：',
     '1) 占用方若是导出/仿真等长任务：等它完成即自行恢复，无需任何操作；',
-    '2) 用 ops_bash 探测引擎是否还活着：',
+    '2) 用宿主提供的 shell 工具探测引擎是否还活着：',
     '   powershell -NoProfile -Command "Get-Process MATLAB | Select-Object Id,CPU,WS"',
     '   CPU 在涨 = 在干活（选 1 等待）；CPU 平 = 已僵死（选 3）；',
-    '3) 已僵死：重启本 MCP 服务器（DSH 的 MCP 设置），或结束对应 MATLAB 进程由 exe 重建。',
+    '3) 已僵死：重启本 MCP 服务器（客户端的 MCP 设置），或结束对应 MATLAB 进程由 exe 重建。',
     '根治：>45s 的工作改走 eval_async + job_status（提交立即返回，不占前台引擎）。',
     '本守卫可用环境变量 MC_WEDGE_GUARD=0 关闭。',
   ].join('\n')
@@ -503,11 +503,11 @@ export function fixToolInputSchema(tool, changed, warnings) {
   }
   fixObjectSchemas(schema, name, changed, warnings)
 
-  // 顶层没声明 type 时，DSH 会硬编码 type:'object'；这里只在「确实缺 type 且即将被当作
+  // 顶层没声明 type 时，客户端普遍硬编码 type:'object'；这里只在「确实缺 type 且即将被当作
   // object 用」时补齐，让上游与下游对这份 schema 的理解一致。
   if (schema.type === undefined && isUsableProperties(schema.properties)) {
     schema.type = 'object'
-    changed.push(`${name}: inputSchema 缺 type → 已补 'object'（DSH 侧本就按 object 处理）`)
+    changed.push(`${name}: inputSchema 缺 type → 已补 'object'（客户端本就按 object 处理）`)
   }
 }
 
@@ -596,7 +596,7 @@ export class LineFramer {
  * `LineFramer.push()` 已经把帧**从内部缓冲取出**，所以 `break` 之后的帧既不在
  * framer.pending 里、也没被写出 —— **永久丢失**。真实场景：MCP 服务器一次发多帧
  * （initialize 响应 + notifications/* + 很大的 tools/list 一起到达），而 stdout 管道
- * 缓冲写满触发背压时，后面的帧就没了，DSH 侧表现为握手卡死或 tool 列表不完整。
+ * 缓冲写满触发背压时，后面的帧就没了，客户端侧表现为握手卡死或 tool 列表不完整。
  *
  * 本类保证：`push()` 进来的帧**一个都不会丢** —— 每帧要么已交给 write，要么留在队列里
  * 等 drain 后续写。Node 的语义是「write 返回 false = 数据已被接受，但缓冲区已满，
@@ -856,7 +856,7 @@ function runProxy(command, args) {
   process.stdin.on('end', () => child.stdin.end())
   process.stdin.on('error', () => { /* 父进程消失：交给 child exit 处理 */ })
 
-  // 子进程 stderr 原样透传（DSH 会收集它作为诊断线索）。
+  // 子进程 stderr 原样透传（客户端会收集它作为诊断线索）。
   child.stderr.on('data', (chunk) => process.stderr.write(chunk))
 
   child.on('error', (error) => {
@@ -872,7 +872,7 @@ function runProxy(command, args) {
    * ── 为什么不能直接在 'exit' 里 process.exit（2026-10-10 自查发现的 P1）──────
    * Node 的 `exit` 事件在**子进程结束时**就触发，此刻 `child.stdout` 里可能还有
    * 尚未派发成 'data' 事件的缓冲数据。若在 'exit' 里立刻 `process.exit()`，那批数据
-   * **永久丢失**（表现为 DSH 侧 tools/list 不完整或握手半截）。
+   * **永久丢失**（表现为客户端侧 tools/list 不完整或握手半截）。
    * 正确做法：`close` 事件保证「进程已退出 **且 stdio 全部关闭**」，因此把最终收尾挂在
    * `close` 上；`exit` 只用来记住退出码。同时留一个短兜底定时器，避免子进程的孙进程
    * 一直占着 stdout 导致 close 迟到。
@@ -886,13 +886,13 @@ function runProxy(command, args) {
     if (pump.pending > 0 && !process.stdout.writableEnded) pump.drainNow()
 
     // 收尾三件事，顺序不能错：
-    //   ① 关掉 stdin：DSH 会话期间它会一直开着，不关则事件循环不会空；
+    //   ① 关掉 stdin：会话期间它会一直开着，不关则事件循环不会空；
     //   ② stdout.end(cb)：cb 表示**底层资源已把数据刷完**，此时才能安全退出；
     //   ③ 在 cb 里 process.exit(exitCode)：既保证最后一批字节送达，又保证进程真的结束。
     //
     // 为什么不能只用 `process.exitCode = ...` 然后不管：
     //   Node 只有在**事件循环为空**时才按 exitCode 自然退出。MCP 会话里 stdin 是长开的
-    //   管道，仅设 exitCode 会让代理**永远活着**（子进程已死、代理不退），DSH 侧表现为
+    //   管道，仅设 exitCode 会让代理**永远活着**（子进程已死、代理不退），客户端侧表现为
     //   「服务器还在但不再响应」——比直接退出更糟。所以必须显式 exit。
     try { process.stdin.destroy() } catch { /* 已关 */ }
 
@@ -921,7 +921,7 @@ function runProxy(command, args) {
     fallback.unref?.()
   })
 
-  // 父进程（DSH）要求退出时，先优雅关掉子进程再走。
+  // 父进程（客户端）要求退出时，先优雅关掉子进程再走。
   for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP', 'SIGBREAK']) {
     process.on(signal, () => {
       if (exiting) return

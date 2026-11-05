@@ -12,7 +12,7 @@ code for a licence on the MathWorks binary.
 --------------------------------------------------------------------------------
 
 The MIT grant in LICENSE covers ONLY the original material authored for this
-repository: the 32 custom extension tools (59 .m files including helpers) under
+repository: the 32 custom extension tools (60 .m files including helpers) under
 extensions/functions/, the tool registries extensions/*.json, the stdio JSON-RPC
 proxy mcp-schema-fix-proxy.mjs, the helper scripts under extensions/tools/, the
 v10_fixture test fixture, and the documentation under extensions/docs/.
@@ -31,14 +31,15 @@ conditions, their disclaimer, and their clause 3 restriction.
 
 Original work, authored for this repository and licensed MIT (see LICENSE):
 
-  extensions/functions/*.m      32 custom MCP tools + 27 shared helpers = 59 .m files
+  extensions/functions/*.m      32 custom MCP tools + 28 shared helpers = 60 .m files
   extensions/mcp-jobs.json      tool registry (16 tools)
   extensions/mcp-qa-tools.json  tool registry (16 tools)
   mcp-schema-fix-proxy.mjs      stdio JSON-RPC schema-repair proxy
   extensions/tools/*.js         registry maintenance scripts
   extensions/v10_fixture/       reproducible test fixture
   extensions/docs/*.md          measurement and acceptance reports
-  README.md / README.en.md / SCHEMA-FIX-README.md
+  README.md / README.en.md / SCHEMA-FIX-README.md / CHANGELOG.md /
+  UPGRADE-0.16.0-REPORT.md
 
 The repository does NOT contain the official server binary.
 matlab-mcp-server-windows-x64.exe and its platform variants are matched by
@@ -94,6 +95,7 @@ because the file name carries no version information:
 
   v0.14.0 windows-x64 : 6697a8962f148628f11d93b36960235871de5614905d6a27c55341c2b83f4118
   v0.15.0 windows-x64 : a1f67dd917c5731f88399e1671ebe4f6959d2fd520c78dcaa1faf3ad37ea9518
+  v0.16.0 windows-x64 : 7c70fdc69e7e7d4762732fede64f348b18ecbc89c3de705f9dde89a86d1883ea  (current)
 
 Always prefer the official release page over any mirror.
 
